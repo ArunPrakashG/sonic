@@ -1,6 +1,4 @@
-/// Support for doing something awesome.
-///
-/// More dartdocs go here.
+/// **Sonic** is a HTTP client made on top of **Dio** to have better support for types and provide a fluent interface for the calls.
 library sonic;
 
 export 'src/sonic_base.dart';
