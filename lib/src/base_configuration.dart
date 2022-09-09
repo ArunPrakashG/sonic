@@ -17,6 +17,7 @@ class BaseConfiguration {
     this.defaultQueryParameters,
     this.extra,
     this.debugMode = false,
+    this.allowConcurrency = true,
     this.followRedirects = true,
     this.maxRedirects = MAX_REDIRECTS,
   });
@@ -35,6 +36,7 @@ class BaseConfiguration {
   final Map<String, dynamic>? defaultQueryParameters;
   final Map<String, dynamic>? extra;
   final bool followRedirects;
+  final bool allowConcurrency;
   final int maxRedirects;
 
   String get _baseUrl => join(baseUrl, path);

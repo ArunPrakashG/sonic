@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_equals_and_hash_code_on_mutable_classes, avoid_returning_this
 
 import 'package:dio/dio.dart';
+import 'package:synchronized/synchronized.dart' as sync;
 
 import 'base_configuration.dart';
 import 'enums.dart';
@@ -13,17 +14,48 @@ import 'utilities/type_map.dart';
 
 part 'sonic_response.dart';
 
+/// A Network Client with a Fluent API and improved type system for responses.
 class Sonic {
+  /// Default Constructor.
+  ///
+  /// [BaseConfiguration] is used to configure this instance of [Sonic]
+  ///
+  /// [instanceTag] is used to identify an instance of [Sonic]
   Sonic({
     required this.baseConfiguration,
     this.instanceTag,
   });
 
+  /// Named Consturctor which calls [initialize] method as well.
+  ///
+  /// [BaseConfiguration] is used to configure this instance of [Sonic]
+  ///
+  /// [instanceTag] is used to identify an instance of [Sonic]
+  Sonic.initialize({
+    required this.baseConfiguration,
+    this.instanceTag,
+  }) {
+    initialize();
+  }
+
+  /// The Base Configuration.
+  ///
+  /// **Read Only**
   final BaseConfiguration baseConfiguration;
+
+  /// The Instance Tag which is used to identify this instance.
+  ///
+  /// **Read Only**
   final String? instanceTag;
   TypeMap? _instanceTypeMap;
   Dio? _dioClient;
   bool _initialized = false;
+  sync.Lock? _lock;
+
+  /// Specifys if the client is ready for network calls.
+  ///
+  /// Will be true if the client has finished initialization.
+  bool get isReady => _initialized;
 
   TypeMap get _typeMap {
     if (_instanceTypeMap == null || !_initialized) {
@@ -49,6 +81,9 @@ class Sonic {
     return _dioClient!;
   }
 
+  /// Initializes the [Sonic] Client with base configuration.
+  ///
+  /// This method must be called if you are using the default constructor. If not, [ClientNotInitializedException] exception will be thrown.
   void initialize() {
     if (_initialized) {
       return;
@@ -68,9 +103,16 @@ class Sonic {
       );
     }
 
+    if (!baseConfiguration.allowConcurrency) {
+      _lock = sync.Lock();
+    }
+
     _initialized = true;
   }
 
+  /// Registers a type with the client.
+  ///
+  /// This is used to register a decoder for a response model class.
   void registerType<T>({
     required T Function(dynamic json) decoder,
     Map<String, dynamic> Function(T instance)? encoder,
@@ -83,38 +125,74 @@ class Sonic {
     }
   }
 
-  SonicRequest<T> create<T>({
+  /// Creates a new Request Builder.
+  ///
+  /// Request Builders are used to build the request. Once build, calling `execute()` on them will execute the request and provide the response.
+  SonicRequestBuilder<T> create<T>({
     required String url,
     HttpMethod method = HttpMethod.get,
+    bool rawRequest = false,
   }) {
+    if (rawRequest) {
+      return SonicRequestBuilder<T>._(
+        this,
+        url,
+        method,
+        null,
+        rawRequest,
+      );
+    }
+
     final decoder = _typeMap.getDecoderForType<T>(false);
 
-    return SonicRequest<T>._(
+    return SonicRequestBuilder<T>._(
       this,
       url,
       method,
       decoder,
+      rawRequest,
     );
   }
 
   Future<SonicResponse<T>> _runRequest<T>(
-    SonicRequest<T> request,
-  ) async {
-    final response = await _client.request<dynamic>(
-      request._url,
-      data: request._body,
-      cancelToken: request._cancelToken,
-      queryParameters: request._queryParameters,
-      options: Options(
-        method: request._method.name,
-        extra: request._extra,
-        headers: request._headers,
-      ),
-    );
+    SonicRequestBuilder<T> requestBuilder, [
+    bool rawRequest = false,
+  ]) async {
+    Response<dynamic> response;
 
-    final decoder = request._decoder;
+    if (!baseConfiguration.allowConcurrency && _lock != null) {
+      response = await _lock!.synchronized(
+        () async {
+          return _client.request<dynamic>(
+            requestBuilder._url,
+            data: requestBuilder._body,
+            cancelToken: requestBuilder._cancelToken,
+            queryParameters: requestBuilder._queryParameters,
+            options: Options(
+              method: requestBuilder._method.name,
+              extra: requestBuilder._extra,
+              headers: requestBuilder._headers,
+            ),
+          );
+        },
+      );
+    } else {
+      response = await _client.request<dynamic>(
+        requestBuilder._url,
+        data: requestBuilder._body,
+        cancelToken: requestBuilder._cancelToken,
+        queryParameters: requestBuilder._queryParameters,
+        options: Options(
+          method: requestBuilder._method.name,
+          extra: requestBuilder._extra,
+          headers: requestBuilder._headers,
+        ),
+      );
+    }
 
-    if (decoder == null) {
+    final decoder = requestBuilder._decoder;
+
+    if (decoder == null && !rawRequest) {
       throw DecoderDoesNotExistException(
         message:
             'Decoder for type ${typeOf<T>()} is not provided. Did you forgot to register a decoder?',
@@ -122,16 +200,18 @@ class Sonic {
       );
     }
 
-    final cachedDecoder = _typeMap.getDecoderForType<T>(false);
+    if (!rawRequest) {
+      final cachedDecoder = _typeMap.getDecoderForType<T>(false);
 
-    if (cachedDecoder == null) {
-      _typeMap.addDecoderForType<T>(decoder);
+      if (cachedDecoder == null && decoder != null) {
+        _typeMap.addDecoderForType<T>(decoder);
+      }
     }
 
     return SonicResponse<T>._(
       statusCode: response.statusCode ?? -1,
       message: response.statusMessage,
-      data: decoder(response.data),
+      data: rawRequest ? response.data as T : decoder!(response.data),
       headers: response.headers.map,
     );
   }
@@ -150,17 +230,22 @@ class Sonic {
   int get hashCode => baseConfiguration.hashCode ^ instanceTag.hashCode;
 }
 
-class SonicRequest<T> {
-  SonicRequest._(
+/// The Request Builder.
+///
+/// The Type [T] is the response model type.
+class SonicRequestBuilder<T> {
+  SonicRequestBuilder._(
     this._sonic,
     this._url,
     this._method,
     this._decoder,
+    this._rawRequest,
   );
 
   final Sonic _sonic;
   final String _url;
 
+  bool _rawRequest;
   HttpMethod _method;
   Map<String, dynamic>? _headers;
   Map<String, dynamic>? _extra;
@@ -172,90 +257,123 @@ class SonicRequest<T> {
   void Function()? _onRunning;
   void Function(SonicResponse<T> data)? _onSuccess;
 
-  SonicRequest<T> withDecoder(T Function(dynamic json) decoder) {
+  /// Adds a response decoder which decodes the response to the specified type.
+  ///
+  /// **NOTES**</br>
+  /// - If you have already used the same model with another request, the decoder will be cached and therefore, you don't need to pass it again.
+  /// - If you have used the `registerType()` method, you don't need to pass a decoder here either.
+  SonicRequestBuilder<T> withDecoder(T Function(dynamic json) decoder) {
     _decoder = decoder;
     return this;
   }
 
-  SonicRequest<T> post() {
+  /// Specifies the request to be a `POST` Request.
+  SonicRequestBuilder<T> post() {
     _method = HttpMethod.post;
     return this;
   }
 
-  SonicRequest<T> get() {
+  /// Specifies the request to be a `GET` Request.
+  SonicRequestBuilder<T> get() {
     _method = HttpMethod.get;
     return this;
   }
 
-  SonicRequest<T> patch() {
+  /// Specifies the request to be a `PATCH` Request.
+  SonicRequestBuilder<T> patch() {
     _method = HttpMethod.patch;
     return this;
   }
 
-  SonicRequest<T> delete() {
+  /// Specifies the request to be a `DELETE` Request.
+  SonicRequestBuilder<T> delete() {
     _method = HttpMethod.delete;
     return this;
   }
 
-  SonicRequest<T> put() {
+  /// Specifies the request to be a `PUT` Request.
+  SonicRequestBuilder<T> put() {
     _method = HttpMethod.put;
     return this;
   }
 
-  SonicRequest<T> withBody(dynamic body) {
+  /// Adds body to the request.
+  SonicRequestBuilder<T> withBody(dynamic body) {
     _body = body;
     return this;
   }
 
-  SonicRequest<T> withExtra(Map<String, dynamic> extra) {
+  /// Marks the request as a Raw Request. (No Response Type Parsing)
+  SonicRequestBuilder<T> asRawRequest() {
+    _rawRequest = true;
+    return this;
+  }
+
+  /// Can be used to pass extra data to the request. The data will be available on the response. This is a feature from [Dio].
+  SonicRequestBuilder<T> withExtra(Map<String, dynamic> extra) {
     _extra = extra;
     return this;
   }
 
-  SonicRequest<T> withCancelToken(CancelToken cancelToken) {
+  /// Adds a cancel token to the request by which, the request can be cancelled.
+  SonicRequestBuilder<T> withCancelToken(CancelToken cancelToken) {
     _cancelToken = cancelToken;
     return this;
   }
 
-  SonicRequest<T> withQueryParameter(String key, dynamic value) {
+  /// Used to add a pair of Query Parameters to the request.
+  SonicRequestBuilder<T> withQueryParameter(String key, dynamic value) {
     _queryParameters ??= <String, dynamic>{};
     _queryParameters![key] = value;
     return this;
   }
 
-  SonicRequest<T> withQueryParameters(Map<String, dynamic> parameters) {
+  /// Used to add Query Parameters to the request.
+  SonicRequestBuilder<T> withQueryParameters(Map<String, dynamic> parameters) {
     _queryParameters ??= <String, dynamic>{};
     _queryParameters!.addAll(parameters);
     return this;
   }
 
-  SonicRequest<T> withHeader(String key, dynamic value) {
+  /// Used to add a pair of Header to the request.
+  SonicRequestBuilder<T> withHeader(String key, dynamic value) {
     _headers ??= <String, dynamic>{};
     _headers![key] = value;
     return this;
   }
 
-  SonicRequest<T> withHeaders(Map<String, dynamic> headers) {
+  /// Used to add Headers to the request.
+  SonicRequestBuilder<T> withHeaders(Map<String, dynamic> headers) {
     _headers ??= <String, dynamic>{};
     _headers!.addAll(headers);
     return this;
   }
 
-  SonicRequest<T> onSuccess(void Function(SonicResponse<T> data) callback) {
+  /// Callback triggered when the data is received and the status code indicates success.
+  SonicRequestBuilder<T> onSuccess(
+    void Function(SonicResponse<T> data) callback,
+  ) {
     _onSuccess = callback;
     return this;
   }
 
-  SonicRequest<T> onError(void Function(SonicError error) callback) {
+  /// Callback triggered when there is an error with the requesting process.
+  ///
+  /// Errors are defined as [SonicError] object which contain `message` and `stackTrace`
+  SonicRequestBuilder<T> onError(void Function(SonicError error) callback) {
     _onError = callback;
     return this;
   }
 
-  SonicRequest<T> onLoading(void Function() callback) {
+  /// Callback triggered when the request is in progress.
+  SonicRequestBuilder<T> onLoading(void Function() callback) {
     _onRunning = callback;
     return this;
   }
 
+  /// Called to execute the request with the parameters.
+  ///
+  /// The result `Future` contains [SonicResponse] which contains the response instance and meta data on the request.
   Future<SonicResponse<T>> execute() async {
     SonicError? errorObject;
 
@@ -264,7 +382,7 @@ class SonicRequest<T> {
     }
 
     final response = await asyncTryCatchDelegate<SonicResponse<T>>(
-      tryBlock: () async => _sonic._runRequest<T>(this),
+      tryBlock: () async => _sonic._runRequest<T>(this, _rawRequest),
       fac: () {
         return SonicResponse._(
           statusCode: -1,
