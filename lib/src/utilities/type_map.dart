@@ -24,7 +24,8 @@ class TypeMap {
       }
 
       throw MapDoesNotExistException(
-        'Map of type: ${typeOf<T>()} does not exist!',
+        message: 'Map of type: ${typeOf<T>()} does not exist!',
+        stackTrace: StackTrace.current,
       );
     }
 
@@ -43,7 +44,8 @@ class TypeMap {
   Map<String, dynamic> Function(T? instance) getEncoderForType<T>() {
     if (_encoders[typeOf<T>()] == null) {
       throw MapDoesNotExistException(
-        'Map of type: ${typeOf<T>()} does not exist!',
+        message: 'Map of type: ${typeOf<T>()} does not exist!',
+        stackTrace: StackTrace.current,
       );
     }
 
