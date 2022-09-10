@@ -1,7 +1,9 @@
+// ignore_for_file: public_member_api_docs, sort_constructors_first
 part of 'sonic_base.dart';
 
+@immutable
 class SonicResponse<T> {
-  SonicResponse._({
+  const SonicResponse._({
     this.extra,
     this.headers,
     this.data,
@@ -22,7 +24,7 @@ class SonicResponse<T> {
   /// status code >= 200 and status code <= 299
   bool get isSuccess => statusCode >= 200 && statusCode <= 299;
 
-  /// Specifies if the response is an error response.
+  /// Specifies if the response contains an error.
   bool get hasError => sonicError != null;
 
   /// Transforms this instance of [SonicResponse] to [Y] type with [callback]
@@ -40,5 +42,31 @@ class SonicResponse<T> {
     }
 
     return onData(data);
+  }
+
+  @override
+  bool operator ==(covariant SonicResponse<T> other) {
+    if (identical(this, other)) {
+      return true;
+    }
+
+    final mapEquals = const DeepCollectionEquality().equals;
+
+    return mapEquals(other.extra, extra) &&
+        mapEquals(other.headers, headers) &&
+        other.data == data &&
+        other.statusCode == statusCode &&
+        other.message == message &&
+        other.sonicError == sonicError;
+  }
+
+  @override
+  int get hashCode {
+    return extra.hashCode ^
+        headers.hashCode ^
+        data.hashCode ^
+        statusCode.hashCode ^
+        message.hashCode ^
+        sonicError.hashCode;
   }
 }

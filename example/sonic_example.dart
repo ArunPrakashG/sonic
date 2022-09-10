@@ -4,19 +4,20 @@ import 'dart:developer';
 
 import 'package:sonic/sonic.dart';
 
-class ExampleResponse {}
-
 Future<void> main() async {
-  final sonic = Sonic.initialize(
-    baseConfiguration: BaseConfiguration.defaultConfig(),
+  final sonic = Sonic(
+    baseConfiguration: const BaseConfiguration(
+      baseUrl: 'https://jsonplaceholder.typicode.com/',
+      debugMode: true,
+    ),
   );
 
+  sonic.initialize();
+
   final response = await sonic
-      .create<MockApiModel>(
-        url: 'https://jsonplaceholder.typicode.com/todos/1',
-      )
+      .create<TodoModel>(url: '/todos/1')
       .get()
-      .withDecoder((dynamic json) => MockApiModel.fromMap(json))
+      .withDecoder((dynamic json) => TodoModel.fromMap(json))
       .onError((error) {
         print(error.message);
         print(error.stackTrace);
@@ -30,13 +31,13 @@ Future<void> main() async {
       .execute();
 }
 
-class MockApiModel {
+class TodoModel {
   final int userId;
   final int id;
   final String title;
   final bool completed;
 
-  MockApiModel({
+  TodoModel({
     required this.userId,
     required this.id,
     required this.title,
@@ -52,8 +53,8 @@ class MockApiModel {
     };
   }
 
-  factory MockApiModel.fromMap(dynamic map) {
-    return MockApiModel(
+  factory TodoModel.fromMap(dynamic map) {
+    return TodoModel(
       userId: map['userId'] as int,
       id: map['id'] as int,
       title: map['title'] as String,
@@ -63,6 +64,6 @@ class MockApiModel {
 
   String toJson() => json.encode(toMap());
 
-  factory MockApiModel.fromJson(String source) =>
-      MockApiModel.fromMap(json.decode(source) as Map<String, dynamic>);
+  factory TodoModel.fromJson(String source) =>
+      TodoModel.fromMap(json.decode(source) as Map<String, dynamic>);
 }

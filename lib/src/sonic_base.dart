@@ -1,14 +1,18 @@
+// ignore_for_file: public_member_api_docs, sort_constructors_first
 // ignore_for_file: avoid_equals_and_hash_code_on_mutable_classes, avoid_returning_this
 
+import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
+import 'package:meta/meta.dart';
 import 'package:synchronized/synchronized.dart' as sync;
 
 import 'base_configuration.dart';
 import 'enums.dart';
 import 'exceptions/client_not_initialized_exception.dart';
-
 import 'exceptions/decoder_not_exists_exception.dart';
 import 'sonic_error.dart';
+import 'sonic_progress.dart';
+import 'typedefs.dart';
 import 'utilities/helpers.dart';
 import 'utilities/type_map.dart';
 
@@ -58,7 +62,7 @@ class Sonic {
   bool get isReady => _initialized;
 
   TypeMap get _typeMap {
-    if (_instanceTypeMap == null || !_initialized) {
+    if (_instanceTypeMap == null) {
       throw ClientNotInitializedException(
         message:
             'Sonic Client is not yet initialized. Did you forget to call initialize()?',
@@ -70,7 +74,7 @@ class Sonic {
   }
 
   Dio get _client {
-    if (_dioClient == null || !_initialized) {
+    if (_dioClient == null) {
       throw ClientNotInitializedException(
         message:
             'Sonic Client is not yet initialized. Did you forget to call initialize()?',
@@ -160,34 +164,42 @@ class Sonic {
   ]) async {
     Response<dynamic> response;
 
+    final requestFuture = _client.request<dynamic>(
+      requestBuilder._url,
+      data: requestBuilder._body,
+      cancelToken: requestBuilder._cancelToken,
+      queryParameters: requestBuilder._queryParameters,
+      onSendProgress: (count, total) {
+        if (requestBuilder._sentProgress != null) {
+          requestBuilder._sentProgress!(
+            SonicProgress(current: count, total: total),
+          );
+        }
+      },
+      onReceiveProgress: (count, total) {
+        if (requestBuilder._receiveProgress != null) {
+          requestBuilder._receiveProgress!(
+            SonicProgress(current: count, total: total),
+          );
+        }
+      },
+      options: Options(
+        method: requestBuilder._method.name,
+        extra: requestBuilder._extra,
+        headers: requestBuilder._headers,
+        maxRedirects: requestBuilder._maxRedirects,
+        followRedirects: requestBuilder._followRedirects,
+        sendTimeout: requestBuilder._sentTimeout,
+        receiveTimeout: requestBuilder._receiveTimeout,
+      ),
+    );
+
     if (!baseConfiguration.allowConcurrency && _lock != null) {
       response = await _lock!.synchronized(
-        () async {
-          return _client.request<dynamic>(
-            requestBuilder._url,
-            data: requestBuilder._body,
-            cancelToken: requestBuilder._cancelToken,
-            queryParameters: requestBuilder._queryParameters,
-            options: Options(
-              method: requestBuilder._method.name,
-              extra: requestBuilder._extra,
-              headers: requestBuilder._headers,
-            ),
-          );
-        },
+        () async => requestFuture,
       );
     } else {
-      response = await _client.request<dynamic>(
-        requestBuilder._url,
-        data: requestBuilder._body,
-        cancelToken: requestBuilder._cancelToken,
-        queryParameters: requestBuilder._queryParameters,
-        options: Options(
-          method: requestBuilder._method.name,
-          extra: requestBuilder._extra,
-          headers: requestBuilder._headers,
-        ),
-      );
+      response = await requestFuture;
     }
 
     final decoder = requestBuilder._decoder;
@@ -253,6 +265,12 @@ class SonicRequestBuilder<T> {
   Map<String, dynamic>? _queryParameters;
   T Function(dynamic json)? _decoder;
   CancelToken? _cancelToken;
+  bool? _followRedirects;
+  int? _maxRedirects;
+  int? _receiveTimeout;
+  int? _sentTimeout;
+  SonicProgressCallback? _sentProgress;
+  SonicProgressCallback? _receiveProgress;
   void Function(SonicError error)? _onError;
   void Function()? _onRunning;
   void Function(SonicResponse<T> data)? _onSuccess;
@@ -264,6 +282,46 @@ class SonicRequestBuilder<T> {
   /// - If you have used the `registerType()` method, you don't need to pass a decoder here either.
   SonicRequestBuilder<T> withDecoder(T Function(dynamic json) decoder) {
     _decoder = decoder;
+    return this;
+  }
+
+  /// Register a callback to receive progress for senting (uploading)
+  SonicRequestBuilder<T> withSentProgress(
+    SonicProgressCallback sendProgress,
+  ) {
+    _sentProgress = sendProgress;
+    return this;
+  }
+
+  /// Register a callback to receive progress for receiving (downloading)
+  SonicRequestBuilder<T> withReceiveProgress(
+    SonicProgressCallback receiveProgress,
+  ) {
+    _receiveProgress = receiveProgress;
+    return this;
+  }
+
+  /// Specifies a receive timeout for this request.
+  SonicRequestBuilder<T> withReceiveTimeout(int timeout) {
+    _receiveTimeout = timeout;
+    return this;
+  }
+
+  /// Specifies a sent timeout for this request.
+  SonicRequestBuilder<T> withSendTimeout(int timeout) {
+    _sentTimeout = timeout;
+    return this;
+  }
+
+  /// Specifies if we should follow redirects while making the request.
+  SonicRequestBuilder<T> followRedirects() {
+    _followRedirects = true;
+    return this;
+  }
+
+  /// Specifies the maximum redirect count we should follow.
+  SonicRequestBuilder<T> maxRedirects(int maxRedirects) {
+    _maxRedirects = maxRedirects;
     return this;
   }
 
@@ -381,7 +439,7 @@ class SonicRequestBuilder<T> {
       _onRunning!();
     }
 
-    final response = await asyncTryCatchDelegate<SonicResponse<T>>(
+    final response = await tryCatchDelegate<SonicResponse<T>>(
       tryBlock: () async => _sonic._runRequest<T>(this, _rawRequest),
       fac: () {
         return SonicResponse._(
@@ -435,5 +493,45 @@ class SonicRequestBuilder<T> {
     }
 
     return response;
+  }
+
+  @override
+  bool operator ==(covariant SonicRequestBuilder<T> other) {
+    if (identical(this, other)) {
+      return true;
+    }
+
+    final mapEquals = const DeepCollectionEquality().equals;
+
+    return other._sonic == _sonic &&
+        other._url == _url &&
+        other._rawRequest == _rawRequest &&
+        other._method == _method &&
+        mapEquals(other._headers, _headers) &&
+        mapEquals(other._extra, _extra) &&
+        other._body == _body &&
+        mapEquals(other._queryParameters, _queryParameters) &&
+        other._decoder == _decoder &&
+        other._cancelToken == _cancelToken &&
+        other._onError == _onError &&
+        other._onRunning == _onRunning &&
+        other._onSuccess == _onSuccess;
+  }
+
+  @override
+  int get hashCode {
+    return _sonic.hashCode ^
+        _url.hashCode ^
+        _rawRequest.hashCode ^
+        _method.hashCode ^
+        _headers.hashCode ^
+        _extra.hashCode ^
+        _body.hashCode ^
+        _queryParameters.hashCode ^
+        _decoder.hashCode ^
+        _cancelToken.hashCode ^
+        _onError.hashCode ^
+        _onRunning.hashCode ^
+        _onSuccess.hashCode;
   }
 }

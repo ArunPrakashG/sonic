@@ -1,6 +1,6 @@
 Type typeOf<T>() => T;
 
-Future<T?> asyncTryCatchDelegate<T>({
+Future<T?> tryCatchDelegate<T>({
   required Future<T> Function() tryBlock,
   T Function()? fac,
   void Function(dynamic error, StackTrace stackTrace)? exceptionCallback,
