@@ -11,7 +11,7 @@
 
 ## Getting Started
 
-- Add the latest version of the package from pubspec.
+- Add the latest version of the package from [pub.dev](https://pub.dev/packages/sonic).
 - Import the package: `import 'package:sonic/sonic.dart';`
 - Initialize the client:
   ```dart
