@@ -1,9 +1,7 @@
-<center>
-    <h1>Sonic</h1>
-     <p>
-        An HTTP Client with a Fluent interface and an improved type support.
-    </p>
-</center>
+<h1 align="center">Sonic</h1>
+<p align="center">
+  An HTTP Client with a Fluent interface and an improved type support.
+</p>
 
 ## Features
 - Fluent Interface
@@ -16,8 +14,8 @@
 - Add the latest version of the package from pubspec.
 - Import the package: `import 'package:sonic/sonic.dart';`
 - Initialize the client:
-    ```dart
-    final sonic = Sonic(
+  ```dart
+  final sonic = Sonic(
     baseConfiguration: const BaseConfiguration(
       baseUrl: YOUR_BASE_URL,
       debugMode: true,
@@ -70,6 +68,8 @@
 - You wont need to pass decoder using `withDecoder` after the first call to the same type as the decoder will be cached based on the type.
 - You can either pass relative url (path) or an absolute url to the `url` named parameter.
 - If `debugMode` is true, `LogInterceptor` will be added to the internal `Dio` instance and it will be used to log everything related to a network call in the standard output.
+- You can have multiple instances of `Sonic` as individually, they do not share resources with each other. But it is recommended to have a global instance of `Sonic` and use dependency injection to inject them into your business logic.
+- You can use `FormData` as body for uploading files etc. You can wrap the file with `MultipartFile` instance. these are from `Dio` library.
 
 ## Contributions
 

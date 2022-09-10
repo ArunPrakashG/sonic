@@ -1,6 +1,6 @@
 name: sonic
 description: A fluent interface for handling network requests.
-version: 0.0.2
+version: 0.0.3
 homepage: https://github.com/ArunPrakashG/sonic
 
 environment:
