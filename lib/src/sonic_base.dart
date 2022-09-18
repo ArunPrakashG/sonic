@@ -439,15 +439,15 @@ class SonicRequestBuilder<T> {
       _onRunning!();
     }
 
-    final response = await tryCatchDelegate<SonicResponse<T>>(
-      tryBlock: () async => _sonic._runRequest<T>(this, _rawRequest),
-      fac: () {
+    final response = await task<SonicResponse<T>>(
+      callback: () async => _sonic._runRequest<T>(this, _rawRequest),
+      fallback: () {
         return SonicResponse._(
           statusCode: -1,
           sonicError: errorObject,
         );
       },
-      exceptionCallback: (dynamic error, stackTrace) {
+      onException: (dynamic error, stackTrace) {
         if (error is DioError) {
           errorObject = SonicError(
             message: error.message,

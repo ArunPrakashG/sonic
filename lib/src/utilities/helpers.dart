@@ -1,17 +1,17 @@
 Type typeOf<T>() => T;
 
-Future<T?> tryCatchDelegate<T>({
-  required Future<T> Function() tryBlock,
-  T Function()? fac,
-  void Function(dynamic error, StackTrace stackTrace)? exceptionCallback,
+Future<T?> task<T>({
+  required Future<T> Function() callback,
+  T Function()? fallback,
+  void Function(dynamic error, StackTrace stackTrace)? onException,
 }) async {
   try {
-    return await tryBlock();
+    return await callback();
   } catch (e, stackTrace) {
-    if (exceptionCallback != null) {
-      exceptionCallback(e, stackTrace);
+    if (onException != null) {
+      onException(e, stackTrace);
     }
 
-    return fac != null ? fac() : null;
+    return fallback != null ? fallback() : null;
   }
 }
