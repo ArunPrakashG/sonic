@@ -11,6 +11,7 @@ import 'rate_limit.dart';
 import 'retry_options.dart';
 
 @immutable
+
 /// Global defaults for the Sonic client instance.
 ///
 /// These values map to Dio's [BaseOptions] and additional Sonic features like
@@ -47,52 +48,74 @@ class BaseConfiguration {
   factory BaseConfiguration.defaultConfig() {
     return const BaseConfiguration(baseUrl: '');
   }
+
   /// Base URL for requests. You can also supply a [path] which will be joined.
   final String baseUrl;
+
   /// Optional path joined to [baseUrl].
   final String? path;
+
   /// Connect timeout for new connections.
   final Duration connectTimeout;
+
   /// Receive timeout for responses.
   final Duration receiveTimeout;
+
   /// Send timeout for request bodies.
   final Duration sendTimeout;
+
   /// Enable verbose Dio logging interceptor.
   final bool debugMode;
+
   /// Default headers added to each request.
   final Map<String, dynamic>? defaultHeaders;
+
   /// Default query parameters added to each request.
   final Map<String, dynamic>? defaultQueryParameters;
+
   /// Arbitrary extra values attached to Dio options.
   final Map<String, dynamic>? extra;
+
   /// Whether to follow redirects.
   final bool followRedirects;
+
   /// Allow concurrent requests or serialize them through a lock.
   final bool allowConcurrency;
+
   /// Maximum redirect count when [followRedirects] is true.
   final int maxRedirects;
+
   /// Default retry options for this client.
   final RetryOptions retryOptions;
+
   /// Default cache policy for GETs.
   final CachePolicy cachePolicy;
+
   /// Whether to deduplicate identical in-flight GET requests.
   final bool deduplicateRequests;
+
   /// Optional custom cache store (in-memory by default).
   final CacheStore? cacheStore;
+
   /// Hook invoked before sending a request.
   final void Function(RequestOptions options)? onRequest;
+
   /// Hook invoked after receiving a response (success or 304).
   final void Function(Response response)? onResponse;
+
   /// Hook invoked when an error bubbles up.
   final void Function(DioException error)? onError;
+
   /// Per-host rate limit configuration. Key is host (example.com).
   final Map<String, RateLimitConfig>? rateLimits; // host -> config
   /// Circuit breaker configuration applied per-host.
   final CircuitBreakerConfig? circuitBreakerConfig; // global defaults
   // Optional health probe per host or per instance
   final Future<bool> Function(String host)? healthProbe;
+
   /// Simple token refresh configuration to deduplicate 401-triggered refresh.
   final SimpleAuthRefreshConfig? authRefresh;
+
   /// Callback invoked when a circuit state changes.
   final void Function(String host, CircuitState state)? onCircuitEvent;
 

@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 @immutable
+
 /// Default caching behavior for GET requests.
 class CachePolicy {
   const CachePolicy({
