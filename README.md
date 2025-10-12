@@ -22,7 +22,7 @@
 - 🛡️ Circuit breaker per host with event hooks
 - 🧩 Templates for reusable request presets
 - 📊 Observability: detailed response.extra metrics
-- � Fluent uploads (multipart, fields/files)
+ - 📤 Fluent uploads (multipart, fields/files)
 - 📄 Pagination utilities (Link headers, cursors, adapters, Paged<T>)
 
 <!-- Keeping core bullets concise; details covered in sections below. -->
@@ -41,27 +41,13 @@ flutter pub add sonic
 
 ## 🚀 Getting Started
 
-See the Quickstart in the Wiki: https://github.com/ArunPrakashG/sonic/wiki/Getting-Started
+See the Quickstart in the Wiki: [Getting Started](https://github.com/ArunPrakashG/sonic/wiki/Getting-Started)
 
 ## 🔧 Usage
 
 See examples and patterns in the Wiki pages linked below.
 
-### 📤 Uploads (fluent)
-
-```dart
-await sonic
-  .create<void>(url: '/upload')
-  .upload() // multipart + POST
-  .field('userId', '123')
-  .fileFromPath('file', '/path/to/file.txt', filename: 'file.txt')
-  .onUploadProgress((p) => print('sent \\${p.current}/\\${p.total}'))
-  .execute();
-```
-
-More examples: https://github.com/ArunPrakashG/sonic/wiki/Uploads
-
-## 📚 Wiki
+##  Wiki
 
 The main README is intentionally minimal. Full docs live in the GitHub Wiki:
 
@@ -71,14 +57,15 @@ The main README is intentionally minimal. Full docs live in the GitHub Wiki:
 - 🤝 [Deduplication](https://github.com/ArunPrakashG/sonic/wiki/Deduplication)
 - 🔎 [Observability](https://github.com/ArunPrakashG/sonic/wiki/Observability)
 - 🔐 [Auth Refresh](https://github.com/ArunPrakashG/sonic/wiki/AuthRefresh)
+- 📤 [Uploads](https://github.com/ArunPrakashG/sonic/wiki/Uploads)
 - 📊 [Response Metrics](https://github.com/ArunPrakashG/sonic/wiki/Metrics)
 - ❓ [FAQ](https://github.com/ArunPrakashG/sonic/wiki/FAQ)
 - 📚 [Cookbook](https://github.com/ArunPrakashG/sonic/wiki/Cookbook)
   - Or see the local [COOKBOOK.md](COOKBOOK.md) for quick-start recipes.
-  - Circuit breaker probe/events: https://github.com/ArunPrakashG/sonic/wiki/Circuit-Breaker
-  - Rate limiter with priority: https://github.com/ArunPrakashG/sonic/wiki/Rate-Limiting
-  - Retry with idempotency keys: https://github.com/ArunPrakashG/sonic/wiki/Retries#idempotency-keys
-  - Cache stores & SWR: https://github.com/ArunPrakashG/sonic/wiki/Caching#stores-and-swr
+  - [Circuit breaker probe/events](https://github.com/ArunPrakashG/sonic/wiki/Circuit-Breaker)
+  - [Rate limiter with priority](https://github.com/ArunPrakashG/sonic/wiki/Rate-Limiting)
+  - [Retry with idempotency keys](https://github.com/ArunPrakashG/sonic/wiki/Retries#idempotency-keys)
+  - [Cache stores & SWR](https://github.com/ArunPrakashG/sonic/wiki/Caching#stores-and-swr)
 
 ### 📄 Pagination (Link headers)
 
