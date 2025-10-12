@@ -6,7 +6,6 @@
   <a href="https://pub.dev/packages/sonic"><img src="https://img.shields.io/pub/v/sonic?label=pub.dev&color=%23009dff" alt="pub version" /></a>
   <a href="https://pub.dev/packages/sonic/score"><img src="https://img.shields.io/pub/points/sonic?logo=dart&logoColor=white" alt="pub points" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="license MIT" /></a>
-  <a href="https://pub.dev/documentation/sonic/latest/"><img src="https://img.shields.io/badge/api-reference-pub.dev-blue" alt="API Reference" /></a>
 </p>
 <p align="center"><i>Blazingly simple, production-ready networking on top of Dio — with smart caching, retries, dedup, and observability.</i></p>
 
@@ -22,10 +21,8 @@
 - 🛡️ Circuit breaker per host with event hooks
 - 🧩 Templates for reusable request presets
 - 📊 Observability: detailed response.extra metrics
- - 📤 Fluent uploads (multipart, fields/files)
+- 📤 Fluent uploads (multipart, fields/files)
 - 📄 Pagination utilities (Link headers, cursors, adapters, Paged<T>)
-
-<!-- Keeping core bullets concise; details covered in sections below. -->
 
 ## 📦 Install
 
@@ -64,9 +61,7 @@ if (res.isSuccess) {
 }
 ```
 
-## Wiki
-
-The main README is intentionally minimal. Full docs live in the GitHub Wiki:
+## 📚 Wiki
 
 - 📘 [Getting Started](https://github.com/ArunPrakashG/sonic/wiki/Getting-Started)
 - 🗃️ [Caching](https://github.com/ArunPrakashG/sonic/wiki/Caching)
@@ -77,18 +72,17 @@ The main README is intentionally minimal. Full docs live in the GitHub Wiki:
 - 📤 [Uploads](https://github.com/ArunPrakashG/sonic/wiki/Uploads)
 - 📊 [Response Metrics](https://github.com/ArunPrakashG/sonic/wiki/Metrics)
 - ❓ [FAQ](https://github.com/ArunPrakashG/sonic/wiki/FAQ)
-- 📚 [Cookbook](https://github.com/ArunPrakashG/sonic/wiki/Cookbook) — you can also use the local [COOKBOOK.md](COOKBOOK.md) for quick-start recipes.
+- 📚 [Cookbook](https://github.com/ArunPrakashG/sonic/wiki/Cookbook)
 
 Deep dives are available in the wiki:
+
 - Pagination
 - Circuit breaker and health probe
 - Templates
 - Stage timers and response metrics
 - Rate limiting and priorities
 
-<!-- Deep dive sections were moved to wiki to keep README concise. -->
-
-## Notes
+## 📝 Notes
 
 - You can bypass type parsing by using `asRawRequest()` and typing as `dynamic`.
 - Decoders are cached per type; after first registration, you typically don’t need to pass them again.
