@@ -5,6 +5,7 @@ Interface-based Auth Refresh System with Custom Handler Support
 Breaking changes:
 
 - `AuthRefreshInterceptor` now accepts an `IAuthRefreshHandler` interface instead of individual callback parameters. If you were manually creating `AuthRefreshInterceptor` instances (not common), wrap your callbacks in `DefaultAuthRefreshHandler`:
+
   ```dart
   // Before
   AuthRefreshInterceptor(
@@ -12,7 +13,7 @@ Breaking changes:
     refresh: () async => token,
     setAuthHeader: (req, token) => req.headers['Authorization'] = 'Bearer $token',
   )
-  
+
   // After
   AuthRefreshInterceptor(
     handler: DefaultAuthRefreshHandler(
@@ -22,6 +23,7 @@ Breaking changes:
     ),
   )
   ```
+
 - **No changes needed** if you use `SimpleAuthRefreshConfig` in `BaseConfiguration` - it continues to work as before.
 
 New/Improvements:
