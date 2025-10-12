@@ -1,3 +1,65 @@
+## 1.3.0 - 2025-10-12
+
+Interface-based Auth Refresh System with Custom Handler Support
+
+Breaking changes:
+
+- `AuthRefreshInterceptor` now accepts an `IAuthRefreshHandler` interface instead of individual callback parameters. If you were manually creating `AuthRefreshInterceptor` instances (not common), wrap your callbacks in `DefaultAuthRefreshHandler`:
+  ```dart
+  // Before
+  AuthRefreshInterceptor(
+    shouldRefresh: (err) => err.response?.statusCode == 401,
+    refresh: () async => token,
+    setAuthHeader: (req, token) => req.headers['Authorization'] = 'Bearer $token',
+  )
+  
+  // After
+  AuthRefreshInterceptor(
+    handler: DefaultAuthRefreshHandler(
+      shouldRefresh: (err) => err.response?.statusCode == 401,
+      refresh: () async => token,
+      setAuthHeader: (req, token) => req.headers['Authorization'] = 'Bearer $token',
+    ),
+  )
+  ```
+- **No changes needed** if you use `SimpleAuthRefreshConfig` in `BaseConfiguration` - it continues to work as before.
+
+New/Improvements:
+
+- **`IAuthRefreshHandler` interface** - Implement custom auth refresh logic with full control:
+  - `shouldRefresh(DioException)` - Determine if refresh is needed
+  - `refreshToken()` - Perform token refresh operation
+  - `setAuthHeader(RequestOptions, String)` - Set authorization header
+  - `onRefreshSuccess(String)` - Optional hook called after successful refresh
+  - `onRefreshError(dynamic)` - Optional hook called when refresh fails
+- **`DefaultAuthRefreshHandler`** - Default implementation using callback functions
+- **Enhanced `SimpleAuthRefreshConfig`** - Added optional `onSuccess` and `onError` callbacks for lifecycle management
+- **Better extensibility** - Easily implement custom refresh logic with retry mechanisms, token persistence, logging, and automatic logout
+- **Improved testability** - Mock `IAuthRefreshHandler` in tests instead of individual callbacks
+- **Type safety** - Interface ensures all required methods are implemented
+
+Examples:
+
+- Added `example/custom_auth_handler_example.dart` demonstrating all three approaches (SimpleAuthRefreshConfig, custom handler, DefaultAuthRefreshHandler)
+- Added `example/production_auth_handler_example.dart` showing production-ready implementation with:
+  - Retry logic with exponential backoff
+  - Token persistence to secure storage
+  - Refresh loop prevention
+  - Automatic logout on permanent failure
+  - Refresh token rotation support
+
+Docs:
+
+- Updated `wiki/AuthRefresh.md` with comprehensive examples of interface-based approach
+- Added `AUTH_REFRESH_REFACTORING.md` migration guide
+- All existing examples and tests updated to use new API
+
+Internal:
+
+- All 71 tests pass with new implementation
+- Backward compatibility maintained through `SimpleAuthRefreshConfig.toHandler()`
+- Zero breaking changes for users of `SimpleAuthRefreshConfig`
+
 ## 1.2.0 - 2025-10-12
 
 Fluent API polish, Dockerized benchmarks, and docs refresh
