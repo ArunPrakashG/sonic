@@ -41,14 +41,16 @@ void main() {
     );
 
     sonic.addInterceptor(AuthRefreshInterceptor(
-      shouldRefresh: (err) => err.response?.statusCode == 401,
-      refresh: () async {
-        refreshes++;
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        return 'TOKEN';
-      },
-      setAuthHeader: (req, token) =>
-          req.headers['Authorization'] = 'Bearer $token',
+      handler: DefaultAuthRefreshHandler(
+        shouldRefresh: (err) => err.response?.statusCode == 401,
+        refresh: () async {
+          refreshes++;
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return 'TOKEN';
+        },
+        setAuthHeader: (req, token) =>
+            req.headers['Authorization'] = 'Bearer $token',
+      ),
     ));
 
     final f1 = sonic

@@ -2,11 +2,23 @@
 library sonic;
 
 export 'package:dio/dio.dart'
-    show FormData, MultipartFile, CancelToken, ResponseType;
+    show
+        FormData,
+        MultipartFile,
+        CancelToken,
+        ResponseType,
+        DioException,
+        DioExceptionType,
+        DioMediaType,
+        RequestOptions;
 export 'package:http_parser/http_parser.dart' show MediaType;
 
 export 'src/auth_refresh_interceptor.dart'
-    show AuthRefreshInterceptor, SimpleAuthRefreshConfig;
+    show
+        AuthRefreshInterceptor,
+        SimpleAuthRefreshConfig,
+        IAuthRefreshHandler,
+        DefaultAuthRefreshHandler;
 export 'src/base_configuration.dart' show BaseConfiguration;
 export 'src/cache.dart' show CachePolicy;
 export 'src/circuit_breaker.dart' show CircuitBreakerConfig, CircuitState;

@@ -283,10 +283,12 @@ void main() {
         client: dio,
       );
       sonic.addInterceptor(AuthRefreshInterceptor(
-        shouldRefresh: (err) => err.response?.statusCode == 401,
-        refresh: () async => 'tok123',
-        setAuthHeader: (req, token) =>
-            req.headers['Authorization'] = 'Bearer $token',
+        handler: DefaultAuthRefreshHandler(
+          shouldRefresh: (err) => err.response?.statusCode == 401,
+          refresh: () async => 'tok123',
+          setAuthHeader: (req, token) =>
+              req.headers['Authorization'] = 'Bearer $token',
+        ),
       ));
 
       final r = await sonic

@@ -180,9 +180,7 @@ class Sonic {
       final cfg = baseConfiguration.authRefresh!;
       _client.interceptors.add(
         AuthRefreshInterceptor(
-          shouldRefresh: cfg.shouldRefresh,
-          refresh: cfg.refresh,
-          setAuthHeader: cfg.setAuthHeader,
+          handler: cfg.toHandler(),
         ),
       );
     }
