@@ -5,3 +5,9 @@ enum HttpMethod {
   delete,
   patch,
 }
+
+enum RequestPriority {
+  low,
+  normal,
+  high,
+}

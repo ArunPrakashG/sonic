@@ -69,4 +69,101 @@ class SonicResponse<T> {
         message.hashCode ^
         sonicError.hashCode;
   }
+
+  /// Build a new request builder for the next page using Link headers (if any).
+  /// Requires providing a Sonic instance to construct the builder.
+  SonicRequestBuilder<T>? nextPage(Sonic sonic,
+      {HttpMethod method = HttpMethod.get}) {
+    final h = headers;
+    if (h == null) {
+      return null;
+    }
+    final links = parseLinkHeaderFromMap(h);
+    final next = links['next'];
+    if (next == null) {
+      return null;
+    }
+    return sonic.create<T>(url: next, method: method);
+  }
+
+  /// Build a new request builder for the previous page using Link headers.
+  SonicRequestBuilder<T>? prevPage(Sonic sonic,
+      {HttpMethod method = HttpMethod.get}) {
+    final h = headers;
+    if (h == null) {
+      return null;
+    }
+    final links = parseLinkHeaderFromMap(h);
+    final prev = links['prev'];
+    if (prev == null) {
+      return null;
+    }
+    return sonic.create<T>(url: prev, method: method);
+  }
+
+  /// Cursor helpers for common JSON body styles.
+  /// Provide the cursor path (e.g., 'meta.nextCursor') and the query param name (e.g., 'cursor').
+  SonicRequestBuilder<T>? nextCursor(
+    Sonic sonic, {
+    required String cursorPath,
+    String param = 'cursor',
+    HttpMethod method = HttpMethod.get,
+  }) {
+    final baseUrl = extra?['requestUrl'] as String?;
+    final body = data;
+    if (baseUrl == null || body == null) {
+      return null;
+    }
+    final cursor = pluckValue(body, cursorPath);
+    if (cursor == null) {
+      return null;
+    }
+    final url = addOrReplaceQueryParam(baseUrl, param, cursor.toString());
+    return sonic.create<T>(url: url, method: method);
+  }
+
+  SonicRequestBuilder<T>? prevCursor(
+    Sonic sonic, {
+    required String cursorPath,
+    String param = 'cursor',
+    HttpMethod method = HttpMethod.get,
+  }) {
+    final baseUrl = extra?['requestUrl'] as String?;
+    final body = data;
+    if (baseUrl == null || body == null) {
+      return null;
+    }
+    final cursor = pluckValue(body, cursorPath);
+    if (cursor == null) {
+      return null;
+    }
+    final url = addOrReplaceQueryParam(baseUrl, param, cursor.toString());
+    return sonic.create<T>(url: url, method: method);
+  }
+
+  /// Build a Paged<T> from this response's body/headers using a simple item decoder.
+  ///
+  /// Provide:
+  /// - itemDecoder: converts a single item JSON to T
+  /// - itemsPath: where list of items live in the body (defaults to root)
+  /// - nextCursorPath/prevCursorPath: optional paths to cursors in body
+  /// - cursorParam: the name of the query param to use when building cursor URLs
+  Paged<T> toPaged({
+    required T Function(dynamic json) itemDecoder,
+    String? itemsPath,
+    String? nextCursorPath,
+    String? prevCursorPath,
+    String cursorParam = 'cursor',
+  }) {
+    return makePaged<T>(
+      body: data,
+      headers: headers,
+      requestUrl: extra?['requestUrl'] as String?,
+      itemDecoder: itemDecoder,
+      itemsPath: itemsPath,
+      nextCursorPath: nextCursorPath,
+      prevCursorPath: prevCursorPath,
+      cursorParam: cursorParam,
+    );
+  }
 }

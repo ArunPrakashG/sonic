@@ -1,0 +1,37 @@
+name: Wiki Build (Preview)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki-build.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Render wiki index
+        run: |
+          echo "# Sonic Wiki Preview" > wiki-preview.md
+          echo >> wiki-preview.md
+          for f in wiki/*.md; do
+            echo "- $(basename "$f")" >> wiki-preview.md
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiki-preview
+          path: wiki-preview.md

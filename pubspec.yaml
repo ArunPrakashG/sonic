@@ -1,18 +1,19 @@
 name: sonic
 description: A fluent interface for handling network requests.
-version: 0.0.3
+version: 1.0.0
 homepage: https://github.com/ArunPrakashG/sonic
 
 environment:
-  sdk: '>=2.12.0 <3.0.0'
+  sdk: ">=2.15.0 <3.0.0"
 
 dependencies:
-  collection: ^1.16.0
-  dio: ^4.0.6
-  meta: ^1.8.0
-  path: ^1.8.0
-  synchronized: ^3.0.0+3
+  collection: ^1.19.1
+  dio: ^5.9.0
+  http_parser: ^4.1.2
+  meta: ^1.17.0
+  path: ^1.9.1
+  synchronized: ^3.4.0
 
 dev_dependencies:
-  lints: ^2.0.0
-  test: ^1.16.0
+  lints: ^6.0.0
+  test: ^1.26.3

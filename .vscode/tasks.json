@@ -1,0 +1,35 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Dart tests",
+			"type": "shell",
+			"command": "dart",
+			"args": [
+				"test",
+				"-r",
+				"compact",
+				"--chain-stack-traces"
+			],
+			"problemMatcher": [
+				"$dart-test"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Dart tests",
+			"type": "shell",
+			"command": "dart",
+			"args": [
+				"test",
+				"-r",
+				"compact",
+				"--chain-stack-traces"
+			],
+			"problemMatcher": [
+				"$dart-test"
+			],
+			"group": "build"
+		}
+	]
+}

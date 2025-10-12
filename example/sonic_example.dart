@@ -1,6 +1,7 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first, avoid_print, unused_local_variable
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:sonic/sonic.dart';
 
@@ -17,7 +18,7 @@ Future<void> main() async {
   final response = await sonic
       .create<TodoModel>(url: '/todos/1')
       .get()
-      .withDecoder((dynamic json) => TodoModel.fromMap(json))
+      .withDecoder(TodoModel.fromMap)
       .onError((error) {
         print(error.message);
         print(error.stackTrace);
@@ -29,6 +30,20 @@ Future<void> main() async {
       )
       .onLoading(() => log('Loading'))
       .execute();
+
+  // Simple upload with progress (example endpoint; replace with your API):
+  try {
+    final temp = await File('example.txt').writeAsString('hello');
+    await sonic
+        .create<void>(url: '/upload')
+        .upload()
+        .field('note', 'example')
+        .fileFromPath('file', temp.path, filename: 'example.txt')
+        .onUploadProgress((p) => log('upload ${p.current}/${p.total}'))
+        .execute();
+  } catch (_) {
+    // Swallow since jsonplaceholder does not support file upload; kept to show API shape.
+  }
 }
 
 class TodoModel {
