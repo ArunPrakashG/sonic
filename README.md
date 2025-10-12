@@ -23,6 +23,7 @@
 - 📊 Observability: detailed response.extra metrics
 - 📤 Fluent uploads (multipart, fields/files)
 - 📄 Pagination utilities (Link headers, cursors, adapters, Paged<T>)
+- 🧭 Per-request API versioning with `{baseUrl}` placeholders
 
 ## 📦 Install
 
@@ -68,9 +69,11 @@ if (res.isSuccess) {
 - 🔁 [Retries](https://github.com/ArunPrakashG/sonic/wiki/Retries)
 - 🤝 [Deduplication](https://github.com/ArunPrakashG/sonic/wiki/Deduplication)
 - 🔎 [Observability](https://github.com/ArunPrakashG/sonic/wiki/Observability)
+- 🧩 [Decoding (Strict, Guards, Adapters)](https://github.com/ArunPrakashG/sonic/wiki/Decoding)
 - 🔐 [Auth Refresh](https://github.com/ArunPrakashG/sonic/wiki/AuthRefresh)
 - 📤 [Uploads](https://github.com/ArunPrakashG/sonic/wiki/Uploads)
 - 📊 [Response Metrics](https://github.com/ArunPrakashG/sonic/wiki/Metrics)
+- 🧭 [API Versioning](https://github.com/ArunPrakashG/sonic/wiki/API-Versioning)
 - ❓ [FAQ](https://github.com/ArunPrakashG/sonic/wiki/FAQ)
 - 📚 [Cookbook](https://github.com/ArunPrakashG/sonic/wiki/Cookbook)
 
@@ -81,6 +84,41 @@ Deep dives are available in the wiki:
 - Templates
 - Stage timers and response metrics
 - Rate limiting and priorities
+
+## 🧭 API Versioning
+
+If you work with multiple API versions from the same client, configure versioned base URLs and select the version per request:
+
+```dart
+final sonic = Sonic.initialize(
+  baseConfiguration: const BaseConfiguration(
+    baseUrl: 'https://api.example.com',
+    apiVersions: {
+      // You can avoid repetition with the {baseUrl} placeholder
+      'v1': '{baseUrl}/v1',
+      'v2': '{baseUrl}/v2',
+    },
+  ),
+);
+
+// This request goes to https://api.example.com/v2/users
+final res = await sonic
+    .create<User>(url: '/users')
+    .useApiVersion('v2')
+    .withDecoder((j) => User.fromJson(j as Map<String, dynamic>))
+    .execute();
+```
+
+When no version is selected (or the key is unknown), the default `baseUrl` is used.
+
+Supported placeholders inside `apiVersions` values: `{baseUrl}`, `{origin}`, `{scheme}`, `{host}`, `{port}`, `{basePath}`, `{version}`.
+
+Advanced: You can also resolve `{env:NAME}` via optional flags in `BaseConfiguration`:
+
+- `envPlaceholdersFromDartDefines`: reads `String.fromEnvironment(NAME)`
+- `envPlaceholdersFromProcessEnv`: reads `Platform.environment[NAME]`
+
+See the Wiki: [API Versioning](https://github.com/ArunPrakashG/sonic/wiki/API-Versioning)
 
 ## 📝 Notes
 
@@ -101,4 +139,4 @@ Deep dives are available in the wiki:
 
 ## 🙌 Contributions
 
-🙌 Contributions are always welcome!
+Contributions are always welcome!

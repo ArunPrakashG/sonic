@@ -29,6 +29,33 @@ Tooling:
 
 - Added GitHub Actions workflows for wiki preview and link checking
 
+## 1.1.0 - 2025-10-12
+
+New: Per-request API Versioning with placeholders and custom resolvers
+
+- Per-request API version switching via `SonicRequestBuilder.useApiVersion('v2')`.
+- `BaseConfiguration.apiVersions` supports placeholders:
+  `{baseUrl}`, `{origin}`, `{scheme}`, `{host}`, `{port}`, `{basePath}`, `{version}`.
+- Custom placeholder resolver: `apiVersionPlaceholderResolver(name, arg, baseUri, version)`.
+- Optional environment-based resolution for `{env:NAME}` (disabled by default):
+  - `envPlaceholdersFromDartDefines`: read from `String.fromEnvironment(NAME)`.
+  - `envPlaceholdersFromProcessEnv`: read from `Platform.environment[NAME]`.
+- URL resolution, caching/deduplication, and rate-limiting/circuit selection honor the resolved absolute URL.
+- Download path and onRequest hooks use the effective baseUrl.
+
+Docs
+
+- README: Feature bullet, API Versioning section with placeholders.
+- Wiki: API-Versioning page with configuration, placeholders, custom resolver, env flags, and examples.
+
+Tests
+
+- Added tests for `{baseUrl}`, `{origin}`/`{version}`, custom resolver, and general request wiring.
+
+Internal
+
+- Minor lint cleanups and consistency tweaks around control bodies and import ordering.
+
 ---
 
 ## 0.0.3

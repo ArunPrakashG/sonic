@@ -2,7 +2,7 @@
 // ignore_for_file: avoid_equals_and_hash_code_on_mutable_classes, avoid_returning_this
 
 import 'dart:async' show unawaited;
-import 'dart:io' show HttpDate;
+import 'dart:io' show HttpDate, Platform;
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -93,8 +93,8 @@ class Sonic {
   final Map<String, TokenBucketLimiter> _limiters =
       <String, TokenBucketLimiter>{};
   CircuitBreaker? _circuit;
-  final Map<String, void Function(SonicRequestBuilder<dynamic>)> _templates =
-      <String, void Function(SonicRequestBuilder<dynamic>)>{};
+  // Template registry supports simple and argument-based templates.
+  final Map<String, _Template> _templates = <String, _Template>{};
 
   /// Specifys if the client is ready for network calls.
   ///
@@ -138,6 +138,16 @@ class Sonic {
 
     _dioClient = client ?? Dio(options);
     _instanceTypeMap = TypeMap();
+    // Register default identity decoders for common JSON shapes.
+    // These act as sensible defaults and can be overridden by user registrations.
+    _instanceTypeMap!.addDecoderForType<Map<String, dynamic>>(
+        (j) => j as Map<String, dynamic>);
+    _instanceTypeMap!
+        .addDecoderForType<List<dynamic>>((j) => (j as List).cast<dynamic>());
+    _instanceTypeMap!.addDecoderForType<String>((j) => j as String);
+    _instanceTypeMap!.addDecoderForType<int>((j) => j as int);
+    _instanceTypeMap!.addDecoderForType<double>((j) => (j as num).toDouble());
+    _instanceTypeMap!.addDecoderForType<bool>((j) => j as bool);
     _cache = baseConfiguration.cacheStore ?? InMemoryCacheStore();
 
     // Build rate limiters from configuration (host -> config)
@@ -194,9 +204,36 @@ class Sonic {
     _typeMap.addDecoderForType<T>(decoder);
 
     if (encoder != null) {
-      final casted = encoder as Map<String, dynamic> Function(dynamic);
-      _typeMap.addEncoderForType<T>(casted);
+      _typeMap.addEncoderForType<T>((dynamic v) => encoder(v as T));
     }
+  }
+
+  /// Register only a decoder for type [T]. Alias for [registerType] without encoder.
+  void registerDecoder<T>(T Function(dynamic json) decoder) {
+    _typeMap.addDecoderForType<T>(decoder);
+  }
+
+  /// Register both encoder and decoder for type [T].
+  void registerJsonPair<T>({
+    required Map<String, dynamic> Function(T instance) encoder,
+    required T Function(dynamic json) decoder,
+  }) {
+    _typeMap.addJsonPairForType<T>(
+      encoder: (dynamic v) => encoder(v as T),
+      decoder: decoder,
+    );
+  }
+
+  /// Returns true if a decoder is registered for type [T].
+  bool hasDecoder<T>() => _typeMap.getDecoderForType<T>(false) != null;
+
+  /// Unregister the decoder for type [T]. Returns true if it existed.
+  bool unregisterDecoder<T>() {
+    final exists = hasDecoder<T>();
+    if (exists) {
+      _typeMap.removeDecoderForType<T>();
+    }
+    return exists;
   }
 
   /// Start building a new request.
@@ -241,6 +278,11 @@ class Sonic {
     var _conditionalHeaders = <String, dynamic>{};
     CacheHit<dynamic>? _validatingHit;
 
+    // Resolve effective base URL for this request and build absolute URL
+    final _effectiveBase =
+        _effectiveBaseUrlFor(requestBuilder as SonicRequestBuilder<dynamic>);
+    final _requestUrl = _resolveRequestUrl(requestBuilder._url, _effectiveBase);
+
     Future<Response<dynamic>> makeRequest() {
       // Observability: onRequest hook
       baseConfiguration.onRequest?.call(
@@ -251,13 +293,13 @@ class Sonic {
             ...?requestBuilder._headers,
             ..._conditionalHeaders,
           },
-          baseUrl: baseConfiguration.toDioBaseOptions().baseUrl,
+          baseUrl: _effectiveBase,
           queryParameters: requestBuilder._queryParameters,
           data: requestBuilder._body,
         ),
       );
       return _client.request<dynamic>(
-        requestBuilder._url,
+        _requestUrl,
         data: requestBuilder._body,
         cancelToken: requestBuilder._cancelToken,
         queryParameters: requestBuilder._queryParameters,
@@ -299,7 +341,7 @@ class Sonic {
     // Cache key for GET requests
     final requestKey = _cache.makeKey(
       requestBuilder._method.name,
-      requestBuilder._url,
+      _requestUrl,
       requestBuilder._queryParameters,
       requestBuilder._headers,
     );
@@ -390,7 +432,7 @@ class Sonic {
           final revalStart = DateTime.now();
           unawaited(_client
               .request<dynamic>(
-            requestBuilder._url,
+            _requestUrl,
             data: requestBuilder._body,
             cancelToken: requestBuilder._cancelToken,
             queryParameters: requestBuilder._queryParameters,
@@ -494,11 +536,9 @@ class Sonic {
     var _limiter = null as TokenBucketLimiter?;
     var host = '';
     try {
-      final uri = Uri.tryParse(requestBuilder._url);
-      final baseUrl = baseConfiguration.toDioBaseOptions().baseUrl;
-      host = (uri != null && uri.hasScheme && uri.host.isNotEmpty)
-          ? uri.host
-          : (Uri.tryParse(baseUrl)?.host ?? '');
+      final uri = Uri.tryParse(_requestUrl);
+      host =
+          (uri != null && uri.hasScheme && uri.host.isNotEmpty) ? uri.host : '';
       if (host.isNotEmpty) {
         _limiter = _limiters[host];
       }
@@ -729,7 +769,7 @@ class Sonic {
       'retryDelaysMs': _retryDelaysMs,
       'deduplicated': dedup,
       'networkMs': networkMs,
-      'requestUrl': requestBuilder._url,
+      'requestUrl': _requestUrl,
     };
     if (requestBuilder._rateLimitWaitMs != null) {
       extraMap['rateLimitWaitMs'] = requestBuilder._rateLimitWaitMs;
@@ -750,12 +790,74 @@ class Sonic {
         if (rawRequest) {
           return transformed as T;
         }
+        // Strict mode: media type + shape check
+        final strictEnabled =
+            requestBuilder._strict ?? baseConfiguration.decodeStrict;
+        if (strictEnabled) {
+          final allowed = (requestBuilder._allowedMediaTypes ??
+                  baseConfiguration.allowedMediaTypes)
+              .map((e) => e.toLowerCase())
+              .toList();
+          final ct = response.headers.value('content-type')?.toLowerCase();
+          final mediaType = ct?.split(';').first.trim();
+          final okType = mediaType != null && allowed.any(mediaType.startsWith);
+          if (!okType) {
+            throw DecoderDoesNotExistException(
+              message: 'Disallowed content-type in strict mode: $ct',
+              stackTrace: StackTrace.current,
+            );
+          }
+          final d = transformed;
+          var matches = true;
+          if (T == Map<String, dynamic>) {
+            matches = d is Map<String, dynamic>;
+          } else if (T == List || T == List<dynamic>) {
+            matches = d is List;
+          } else if (T == String) {
+            matches = d is String;
+          } else if (T == int) {
+            matches = d is int;
+          } else if (T == double) {
+            matches = d is num;
+          } else if (T == bool) {
+            matches = d is bool;
+          }
+          if (!matches) {
+            throw DecoderDoesNotExistException(
+              message:
+                  'Strict mode shape mismatch: expected $T but got ${d.runtimeType}',
+              stackTrace: StackTrace.current,
+            );
+          }
+        }
+        // Schema adapter
+        final adapted = requestBuilder._schemaAdapter != null
+            ? requestBuilder._schemaAdapter!(transformed)
+            : transformed;
+        // Type guard
+        if (requestBuilder._typeGuard != null) {
+          final r = requestBuilder._typeGuard!(adapted);
+          if (!r.isOk) {
+            if (safeDecoder != null) {
+              // ignore: avoid_as
+              return DecodeResult<T>(errors: r.errors) as T;
+            }
+            throw DecoderDoesNotExistException(
+              message:
+                  'Type guard failed with ${r.errors.length} error(s): ${r.errors.first.message}',
+              stackTrace: StackTrace.current,
+            );
+          }
+          if (r.value != null && decoder == null && safeDecoder == null) {
+            return r.value as T;
+          }
+        }
         if (safeDecoder != null) {
           // ignore: avoid_as
-          return safeDecoder(transformed) as T;
+          return safeDecoder(adapted) as T;
         }
         final dStart = DateTime.now();
-        final val = decoder!(transformed);
+        final val = decoder!(adapted);
         requestBuilder._decodeMs =
             DateTime.now().difference(dStart).inMilliseconds;
         return val;
@@ -804,10 +906,13 @@ class Sonic {
           if (rawRequest) {
             return transformed as T;
           }
+          final adapted = requestBuilder._schemaAdapter != null
+              ? requestBuilder._schemaAdapter!(transformed)
+              : transformed;
           if (safeDecoder != null) {
-            return safeDecoder(transformed);
+            return safeDecoder(adapted);
           }
-          return decoder!(transformed);
+          return decoder!(adapted);
         })(),
         headers: response.headers.map,
         statusCode: response.statusCode ?? -1,
@@ -836,19 +941,22 @@ class Sonic {
   ) async {
     final startTime = DateTime.now();
     try {
+      final _effectiveBase = _effectiveBaseUrlFor(requestBuilder);
+      final _requestUrl =
+          _resolveRequestUrl(requestBuilder._url, _effectiveBase);
       // Observability: onRequest hook
       baseConfiguration.onRequest?.call(
         RequestOptions(
           path: requestBuilder._url,
           method: requestBuilder._method.name,
           headers: requestBuilder._headers,
-          baseUrl: baseConfiguration.toDioBaseOptions().baseUrl,
+          baseUrl: _effectiveBase,
           queryParameters: requestBuilder._queryParameters,
           data: requestBuilder._body,
         ),
       );
       final resp = await _client.download(
-        requestBuilder._url,
+        _requestUrl,
         savePath,
         data: requestBuilder._body,
         cancelToken: requestBuilder._cancelToken,
@@ -951,19 +1059,50 @@ class Sonic {
   /// Register a reusable request template function that modifies a builder.
   void registerTemplate(
       String name, void Function(SonicRequestBuilder<dynamic>) apply) {
-    _templates[name] = apply;
+    _templates[name] = _Template.apply(apply);
+  }
+
+  /// Register a template that accepts an argument payload.
+  /// Use with [templateWith] or [SonicRequestBuilder.applyTemplateWith].
+  void registerTemplateWith<A>(
+      String name, void Function(SonicRequestBuilder<dynamic>, A args) apply) {
+    _templates[name] = _Template.applyWithArgs((b, dynamic a) {
+      // Cast to A; will throw if caller provided mismatched type.
+      // ignore: avoid_as
+      return apply(b, a as A);
+    });
   }
 
   /// Start a builder from a previously registered template.
   SonicRequestBuilder<T> template<T>(String name,
       {required String url, HttpMethod method = HttpMethod.get}) {
     final base = create<T>(url: url, method: method);
-    final fn = _templates[name];
-    if (fn != null) {
-      fn(base as SonicRequestBuilder<dynamic>);
+    final t = _templates[name];
+    if (t != null) {
+      t(base as SonicRequestBuilder<dynamic>);
     }
     return base;
   }
+
+  /// Start a builder from a template that expects an argument.
+  SonicRequestBuilder<T> templateWith<T, A>(String name, A args,
+      {required String url, HttpMethod method = HttpMethod.get}) {
+    final base = create<T>(url: url, method: method);
+    final t = _templates[name];
+    if (t != null) {
+      t(base as SonicRequestBuilder<dynamic>, args);
+    }
+    return base;
+  }
+
+  /// Return true if a template name is registered.
+  bool hasTemplate(String name) => _templates.containsKey(name);
+
+  /// List all registered template names.
+  Iterable<String> listTemplates() => _templates.keys;
+
+  /// Unregister a template by name. Returns true if removed.
+  bool unregisterTemplate(String name) => _templates.remove(name) != null;
 
   @override
   bool operator ==(covariant Sonic other) {
@@ -977,6 +1116,105 @@ class Sonic {
 
   @override
   int get hashCode => baseConfiguration.hashCode ^ instanceTag.hashCode;
+
+  // Resolve effective baseUrl for a given request builder, honoring per-request
+  // api version selection when BaseConfiguration.apiVersions is provided.
+  String _effectiveBaseUrlFor(SonicRequestBuilder<dynamic> rb) {
+    final versions = baseConfiguration.apiVersions;
+    final selected = rb._apiVersion;
+    final defaultBase = baseConfiguration.toDioBaseOptions().baseUrl;
+    if (versions != null && selected != null) {
+      final mapped = versions[selected];
+      if (mapped != null && mapped.isNotEmpty) {
+        // Replace placeholders using values derived from the configured base URL
+        final u = Uri.tryParse(defaultBase);
+        final scheme = u?.scheme ?? '';
+        final host = u?.host ?? '';
+        final hasPort = u != null && u.hasPort && u.port != 0;
+        final port = hasPort ? u.port.toString() : '';
+        final origin = (scheme.isNotEmpty && host.isNotEmpty)
+            ? '$scheme://$host${hasPort ? ':$port' : ''}'
+            : defaultBase;
+        final basePath = u?.path ?? '';
+        var replaced = mapped
+            .replaceAll('{baseUrl}', defaultBase)
+            .replaceAll('{scheme}', scheme)
+            .replaceAll('{host}', host)
+            .replaceAll('{port}', port)
+            .replaceAll('{origin}', origin)
+            .replaceAll('{basePath}', basePath)
+            .replaceAll('{version}', selected);
+        // Placeholder resolution pass for custom tokens, e.g., {env:FOO}
+        final baseUri = u ?? Uri();
+        // Built-in tokens already replaced above; match any tokens that remain
+        final re = RegExp(r'\{([a-zA-Z0-9_\-]+)(?::([^}]+))?\}');
+        return replaced.replaceAllMapped(re, (m) {
+          final token = m.group(0)!;
+          final name = m.group(1)!;
+          final arg = m.group(2);
+          // Skip built-ins we already handled
+          const builtins = {
+            'baseUrl',
+            'scheme',
+            'host',
+            'port',
+            'origin',
+            'basePath',
+            'version',
+          };
+          if (builtins.contains(name)) {
+            return token;
+          }
+          // Default env resolvers (opt-in via flags)
+          String? resolved;
+          if (name == 'env' && arg != null) {
+            if (baseConfiguration.envPlaceholdersFromDartDefines) {
+              // Note: String.fromEnvironment reads compile-time defines; returns empty if unset.
+              // ignore: do_not_use_environment
+              final v = String.fromEnvironment(arg);
+              if (v.isNotEmpty) {
+                resolved = v;
+              }
+            }
+            if (resolved == null &&
+                baseConfiguration.envPlaceholdersFromProcessEnv) {
+              try {
+                // Access Platform.environment only when enabled
+                // ignore: avoid_dynamic_calls
+                final plat = Platform.environment;
+                final v = plat[arg];
+                if (v != null && v.isNotEmpty) {
+                  resolved = v;
+                }
+              } catch (_) {
+                // Platform may not be available in some runtimes; ignore
+              }
+            }
+          }
+          // User resolver has the final say if provided
+          final user = baseConfiguration.apiVersionPlaceholderResolver;
+          if (user != null) {
+            resolved = user(name, arg, baseUri, selected) ?? resolved;
+          }
+          return resolved ?? token;
+        });
+      }
+    }
+    return defaultBase;
+  }
+
+  // Resolve a possibly relative request path against a base URL.
+  // If the provided url is already absolute, it is returned as-is.
+  String _resolveRequestUrl(String urlOrPath, String baseUrl) {
+    final uri = Uri.tryParse(urlOrPath);
+    if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+      return urlOrPath; // already absolute
+    }
+    if (baseUrl.isEmpty) {
+      return urlOrPath;
+    }
+    return Uri.parse(baseUrl).resolve(urlOrPath).toString();
+  }
 }
 
 /// The Request Builder.
@@ -996,6 +1234,8 @@ class SonicRequestBuilder<T> {
 
   bool _rawRequest;
   HttpMethod _method;
+  // Optional selected API version key for per-request base URL override.
+  String? _apiVersion;
   Map<String, dynamic>? _headers;
   Map<String, dynamic>? _extra;
   dynamic _body;
@@ -1023,6 +1263,12 @@ class SonicRequestBuilder<T> {
   RequestPriority _priority = RequestPriority.normal;
   int? _rateLimitWaitMs;
   int? _decodeMs;
+  // Strict mode and validation hooks
+  bool? _strict; // null -> use BaseConfiguration.decodeStrict
+  List<String>?
+      _allowedMediaTypes; // null -> use BaseConfiguration.allowedMediaTypes
+  DecodeResult<T> Function(dynamic json)? _typeGuard;
+  dynamic Function(dynamic json)? _schemaAdapter;
 
   void _ensureFormData() {
     if (_formData != null) {
@@ -1041,6 +1287,35 @@ class SonicRequestBuilder<T> {
     _body = _formData;
   }
 
+  /// Apply a named template to this builder.
+  SonicRequestBuilder<T> applyTemplate(String name) {
+    final t = _sonic._templates[name];
+    if (t != null) {
+      t(this as SonicRequestBuilder<dynamic>);
+    }
+    return this;
+  }
+
+  /// Apply a named template with argument to this builder.
+  SonicRequestBuilder<T> applyTemplateWith<A>(String name, A args) {
+    final t = _sonic._templates[name];
+    if (t != null) {
+      t(this as SonicRequestBuilder<dynamic>, args);
+    }
+    return this;
+  }
+
+  /// Apply multiple templates in order.
+  SonicRequestBuilder<T> applyTemplates(Iterable<String> names) {
+    for (final n in names) {
+      final t = _sonic._templates[n];
+      if (t != null) {
+        t(this as SonicRequestBuilder<dynamic>);
+      }
+    }
+    return this;
+  }
+
   /// Provide a typed decoder for responses of type [T].
   ///
   /// Notes:
@@ -1055,6 +1330,26 @@ class SonicRequestBuilder<T> {
   SonicRequestBuilder<T> withSafeDecoder(
       DecodeResult<T> Function(dynamic json) decoder) {
     _safeDecoder = decoder;
+    return this;
+  }
+
+  /// Override strict decoding behavior and optionally allowed content types.
+  SonicRequestBuilder<T> strict({bool? enabled, List<String>? allowedTypes}) {
+    _strict = enabled;
+    _allowedMediaTypes = allowedTypes;
+    return this;
+  }
+
+  /// Provide a type guard to validate JSON before decoding.
+  SonicRequestBuilder<T> withTypeGuard(
+      DecodeResult<T> Function(dynamic json) guard) {
+    _typeGuard = guard;
+    return this;
+  }
+
+  /// Provide a schema adapter to transform JSON before decoding.
+  SonicRequestBuilder<T> withSchemaAdapter(dynamic Function(dynamic json) f) {
+    _schemaAdapter = f;
     return this;
   }
 
@@ -1496,6 +1791,13 @@ class SonicRequestBuilder<T> {
     return _sonic._runDownload(this as SonicRequestBuilder<dynamic>, savePath);
   }
 
+  /// Use a configured API version for this request. The version key must exist
+  /// in BaseConfiguration.apiVersions. If not found, the default baseUrl is used.
+  SonicRequestBuilder<T> useApiVersion(String versionKey) {
+    _apiVersion = versionKey;
+    return this;
+  }
+
   @override
   bool operator ==(covariant SonicRequestBuilder<T> other) {
     if (identical(this, other)) {
@@ -1534,5 +1836,23 @@ class SonicRequestBuilder<T> {
         _onError.hashCode ^
         _onRunning.hashCode ^
         _onSuccess.hashCode;
+  }
+}
+
+/// Internal template wrapper that supports optional argument payloads.
+class _Template {
+  _Template.apply(this._apply) : _applyWithArgs = null;
+  _Template.applyWithArgs(this._applyWithArgs) : _apply = null;
+
+  final void Function(SonicRequestBuilder<dynamic> b)? _apply;
+  final void Function(SonicRequestBuilder<dynamic> b, dynamic args)?
+      _applyWithArgs;
+
+  void call(SonicRequestBuilder<dynamic> b, [dynamic args]) {
+    if (_applyWithArgs != null) {
+      _applyWithArgs!(b, args);
+    } else {
+      _apply!(b);
+    }
   }
 }

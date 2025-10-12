@@ -42,6 +42,12 @@ class BaseConfiguration {
     this.healthProbe,
     this.authRefresh,
     this.onCircuitEvent,
+    this.decodeStrict = false,
+    this.allowedMediaTypes = const ['application/json', 'text/json'],
+    this.apiVersions,
+    this.apiVersionPlaceholderResolver,
+    this.envPlaceholdersFromDartDefines = false,
+    this.envPlaceholdersFromProcessEnv = false,
   });
 
   /// A minimal configuration with an empty baseUrl.
@@ -119,6 +125,36 @@ class BaseConfiguration {
   /// Callback invoked when a circuit state changes.
   final void Function(String host, CircuitState state)? onCircuitEvent;
 
+  /// When true, validates the response media type is allowed and that decoded
+  /// bodies match expected JSON shapes before decoding. Defaults to false.
+  final bool decodeStrict;
+
+  /// Allowed media types for strict mode. Checked against the `content-type`
+  /// response header (prefix match before `;`).
+  final List<String> allowedMediaTypes;
+
+  /// Optional map of API versions to full base URLs.
+  /// Example: { 'v1': 'https://api.example.com/v1', 'v2': 'https://api.example.com/v2' }
+  /// When provided, you can switch a single request to a different version via
+  /// SonicRequestBuilder.useApiVersion('v1').
+  final Map<String, String>? apiVersions;
+
+  /// Optional resolver for custom placeholders inside apiVersions values.
+  ///
+  /// Placeholders are of the form `{name}` or `{name:arg}`.
+  /// This resolver is called after built-in placeholders are replaced.
+  /// Return a non-null string to replace the token; return null to leave it unchanged.
+  final String? Function(String name, String? arg, Uri baseUri, String version)?
+      apiVersionPlaceholderResolver;
+
+  /// When true, enables resolving `{env:NAME}` from Dart defines using
+  /// `const String.fromEnvironment(NAME)`. Disabled by default.
+  final bool envPlaceholdersFromDartDefines;
+
+  /// When true, enables resolving `{env:NAME}` from `Platform.environment[NAME]`.
+  /// Disabled by default to keep behavior deterministic and test-friendly.
+  final bool envPlaceholdersFromProcessEnv;
+
   String get _baseUrl => join(baseUrl, path);
 
   /// Convert to Dio [BaseOptions].
@@ -160,6 +196,13 @@ class BaseConfiguration {
     Future<bool> Function(String host)? healthProbe,
     SimpleAuthRefreshConfig? authRefresh,
     void Function(String host, CircuitState state)? onCircuitEvent,
+    bool? decodeStrict,
+    List<String>? allowedMediaTypes,
+    Map<String, String>? apiVersions,
+    String? Function(String name, String? arg, Uri baseUri, String version)?
+        apiVersionPlaceholderResolver,
+    bool? envPlaceholdersFromDartDefines,
+    bool? envPlaceholdersFromProcessEnv,
   }) {
     return BaseConfiguration(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -185,6 +228,15 @@ class BaseConfiguration {
       healthProbe: healthProbe ?? this.healthProbe,
       authRefresh: authRefresh ?? this.authRefresh,
       onCircuitEvent: onCircuitEvent ?? this.onCircuitEvent,
+      decodeStrict: decodeStrict ?? this.decodeStrict,
+      allowedMediaTypes: allowedMediaTypes ?? this.allowedMediaTypes,
+      apiVersions: apiVersions ?? this.apiVersions,
+      apiVersionPlaceholderResolver:
+          apiVersionPlaceholderResolver ?? this.apiVersionPlaceholderResolver,
+      envPlaceholdersFromDartDefines:
+          envPlaceholdersFromDartDefines ?? this.envPlaceholdersFromDartDefines,
+      envPlaceholdersFromProcessEnv:
+          envPlaceholdersFromProcessEnv ?? this.envPlaceholdersFromProcessEnv,
     );
   }
 
@@ -245,6 +297,10 @@ class BaseConfiguration {
         circuitBreakerConfig.hashCode ^
         healthProbe.hashCode ^
         authRefresh.hashCode ^
-        onCircuitEvent.hashCode;
+        onCircuitEvent.hashCode ^
+        decodeStrict.hashCode ^
+        allowedMediaTypes.hashCode ^
+        apiVersions.hashCode ^
+        apiVersionPlaceholderResolver.hashCode;
   }
 }
