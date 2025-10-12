@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 @immutable
+/// Default caching behavior for GET requests.
 class CachePolicy {
   const CachePolicy({
     this.enabled = false,
@@ -27,15 +28,20 @@ class CachePolicy {
 
 /// Abstract interface for a cache store implementation.
 abstract class CacheStore {
+  /// Create a stable key from request parameters.
   String makeKey(String method, String url, Map<String, dynamic>? query,
       Map<String, dynamic>? headers);
 
+  /// Read a value if fresh within [ttl].
   T? get<T>(String key, Duration ttl);
 
+  /// Read a value and metadata if fresh within [ttl].
   CacheHit<T>? getWithMeta<T>(String key, Duration ttl);
 
+  /// Read a value if within [window] regardless of TTL (for SWR).
   CacheHit<T>? getIfWithin<T>(String key, Duration window);
 
+  /// Insert or update a value with optional HTTP metadata.
   void put<T>(String key, T value,
       {Map<String, List<String>>? headers,
       int statusCode = 200,
@@ -45,6 +51,7 @@ abstract class CacheStore {
       String? lastModified,
       bool? mustValidate});
 
+  /// Update metadata/timestamps for an existing entry.
   void updateMeta(String key,
       {Map<String, List<String>>? headers,
       int? statusCode,
@@ -54,8 +61,10 @@ abstract class CacheStore {
       String? lastModified,
       bool? mustValidate});
 
+  /// Remove a single entry.
   void remove(String key);
 
+  /// Clear the cache store.
   void clear();
 }
 

@@ -48,6 +48,8 @@ class RetryOptions {
   /// Use Retry-After header if present for delay calculation.
   final bool respectRetryAfterHeader;
 
+  /// Determine whether a retry should be attempted for the given attempt,
+  /// method, response, or error.
   bool shouldAttemptRetry({
     required int attempt,
     required String method,
@@ -75,6 +77,7 @@ class RetryOptions {
     return false;
   }
 
+  /// Compute delay for the next attempt, respecting Retry-After if enabled.
   Duration computeDelay(int attempt, {Response<dynamic>? response}) {
     // Respect Retry-After header if present and valid
     if (respectRetryAfterHeader && response != null) {

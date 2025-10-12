@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 
+/// Signature to decode a page's item list.
 typedef PageDecoder<T> = T Function(dynamic json);
 
+/// A page of items with optional next/prev references.
 class Paged<T> {
   Paged({
     required this.items,
@@ -14,6 +16,7 @@ class Paged<T> {
   final SonicPageRef<T>? prev;
 }
 
+/// A reference to another page with a URL and item list decoder.
 class SonicPageRef<T> {
   SonicPageRef({
     required this.url,
@@ -41,6 +44,7 @@ Map<String, String> parseLinkHeader(Headers headers) {
   return map;
 }
 
+/// Variant of [parseLinkHeader] for a simple headers map.
 Map<String, String> parseLinkHeaderFromMap(Map<String, List<String>> headers) {
   final link = headers['link']?.first;
   if (link == null) {
@@ -95,6 +99,7 @@ dynamic pluckValue(dynamic data, String path) {
   return current;
 }
 
+/// Add or replace a query parameter in the URL.
 String addOrReplaceQueryParam(String url, String key, String value) {
   final u = Uri.parse(url);
   final qp = Map<String, String>.from(u.queryParameters);
@@ -161,6 +166,7 @@ Paged<T> makePaged<T>({
   );
 }
 
+/// Advance an offset/limit style URL forward/backward by one page.
 String advanceOffsetLimit({
   required String url,
   required int pageSize,
@@ -179,6 +185,7 @@ String advanceOffsetLimit({
   return u.replace(queryParameters: qp).toString();
 }
 
+/// Advance a page-number style URL forward/backward by one.
 String advancePageNumber({
   required String url,
   String pageKey = 'page',

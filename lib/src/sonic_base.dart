@@ -32,13 +32,25 @@ import 'utilities/type_map.dart';
 
 part 'sonic_response.dart';
 
-/// A Network Client with a Fluent API and improved type system for responses.
+/// A high-level HTTP client with a fluent builder API on top of Dio.
+///
+/// Sonic focuses on ergonomics and production features:
+/// - Typed decoders with a small, cached type map
+/// - Retries with backoff/jitter and Retry-After handling
+/// - Caching (TTL/LRU, SWR) with ETag/Last-Modified validation
+/// - Request deduplication and per-host rate limiting with priority
+/// - Circuit breaker with event hooks
+/// - Convenient pagination helpers and multipart uploads
+///
+/// Use [create] to start a [SonicRequestBuilder], configure the request with
+/// builder methods, and call [SonicRequestBuilder.execute] to perform it.
 class Sonic {
   /// Default Constructor.
   ///
-  /// [BaseConfiguration] is used to configure this instance of [Sonic]
+  /// Creates an instance configured by [baseConfiguration].
+  /// If a custom Dio [client] is provided, Sonic will eagerly initialize with it.
   ///
-  /// [instanceTag] is used to identify an instance of [Sonic]
+  /// The optional [instanceTag] can be used to identify or log this instance.
   Sonic({
     required this.baseConfiguration,
     this.instanceTag,
@@ -50,11 +62,9 @@ class Sonic {
     }
   }
 
-  /// Named Consturctor which calls [initialize] method as well.
+  /// Creates and initializes the client in one step.
   ///
-  /// [BaseConfiguration] is used to configure this instance of [Sonic]
-  ///
-  /// [instanceTag] is used to identify an instance of [Sonic]
+  /// Equivalent to calling the default constructor and then [initialize].
   Sonic.initialize({
     required this.baseConfiguration,
     this.instanceTag,
@@ -115,9 +125,10 @@ class Sonic {
     return _dioClient!;
   }
 
-  /// Initializes the [Sonic] Client with base configuration.
+  /// Initializes the internal Dio client, caches, and policies.
   ///
-  /// This method must be called if you are using the default constructor. If not, [ClientNotInitializedException] exception will be thrown.
+  /// You must call this when using the default constructor without a [client].
+  /// Otherwise, most operations will throw [ClientNotInitializedException].
   void initialize({Dio? client}) {
     if (_initialized) {
       return;
@@ -188,9 +199,10 @@ class Sonic {
     }
   }
 
-  /// Creates a new Request Builder.
+  /// Start building a new request.
   ///
-  /// Request Builders are used to build the request. Once build, calling `execute()` on them will execute the request and provide the response.
+  /// Configure the returned builder and call [SonicRequestBuilder.execute]
+  /// to perform the request.
   SonicRequestBuilder<T> create<T>({
     required String url,
     HttpMethod method = HttpMethod.get,
@@ -1029,24 +1041,25 @@ class SonicRequestBuilder<T> {
     _body = _formData;
   }
 
-  /// Adds a response decoder which decodes the response to the specified type.
+  /// Provide a typed decoder for responses of type [T].
   ///
-  /// **NOTES**</br>
-  /// - If you have already used the same model with another request, the decoder will be cached and therefore, you don't need to pass it again.
-  /// - If you have used the `registerType()` method, you don't need to pass a decoder here either.
+  /// Notes:
+  /// - Decoders are cached per type in this [Sonic] instance.
+  /// - If you previously called [Sonic.registerType], you usually don't need to set it again.
   SonicRequestBuilder<T> withDecoder(T Function(dynamic json) decoder) {
     _decoder = decoder;
     return this;
   }
 
+  /// Provide a safe decoder that returns [DecodeResult] instead of throwing.
   SonicRequestBuilder<T> withSafeDecoder(
       DecodeResult<T> Function(dynamic json) decoder) {
     _safeDecoder = decoder;
     return this;
   }
 
-  /// Marks this request as multipart/form-data and initializes a FormData body.
-  /// If an existing body map is present, it's converted into FormData.
+  /// Treat this request as multipart/form-data and initialize a [FormData] body.
+  /// If the current body is a map, it will be converted to [FormData].
   SonicRequestBuilder<T> asMultipart() {
     _ensureFormData();
     return this;
@@ -1267,14 +1280,20 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
-  /// Marks the request as a Raw Request. (No Response Type Parsing)
+  /// Marks the request as a Raw Request. (No typed decoding)
   SonicRequestBuilder<T> asRawRequest() {
     _rawRequest = true;
     return this;
   }
 
   /// Enable simple in-memory GET cache for this request.
+  /// Note: if [pluck] is set for a GET, caching is disabled to avoid mixing shapes.
   SonicRequestBuilder<T> cache({CachePolicy? policy}) {
+    // If a pluck path is set on a GET, avoid enabling cache to prevent
+    // mixing cached shapes with different pluck paths.
+    if (_method == HttpMethod.get && _pluckPath != null) {
+      return this;
+    }
     _useCache = true;
     _cachePolicy = policy;
     return this;
@@ -1292,7 +1311,7 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
-  /// Can be used to pass extra data to the request. The data will be available on the response. This is a feature from [Dio].
+  /// Attach arbitrary extra data to the request (available on Dio response/options).
   SonicRequestBuilder<T> withExtra(Map<String, dynamic> extra) {
     _extra = extra;
     return this;
@@ -1361,8 +1380,7 @@ class SonicRequestBuilder<T> {
   }
 
   /// Callback triggered when there is an error with the requesting process.
-  ///
-  /// Errors are defined as [SonicError] object which contain `message` and `stackTrace`
+  /// Errors are reported as [SonicError] with message and stackTrace.
   SonicRequestBuilder<T> onError(void Function(SonicError error) callback) {
     _onError = callback;
     return this;
@@ -1375,8 +1393,7 @@ class SonicRequestBuilder<T> {
   }
 
   /// Pluck a nested value from the JSON payload before decoding.
-  /// Example: 'data.items[0].user'
-  /// Note: Disables GET cache for this request to avoid mixing cached shapes.
+  /// Example: 'data.items[0].user'. Disables GET cache for this request to avoid mixing cached shapes.
   SonicRequestBuilder<T> pluck(String path) {
     _pluckPath = path;
     if (_method == HttpMethod.get) {
@@ -1385,7 +1402,7 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
-  /// Alias for pluck when unwrapping common envelopes like 'data'
+  /// Alias for pluck when unwrapping common envelopes like 'data'.
   SonicRequestBuilder<T> envelope(String key) => pluck(key);
 
   /// Provide a correlation/request ID header. If omitted, generates one.
@@ -1409,9 +1426,8 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
-  /// Called to execute the request with the parameters.
-  ///
-  /// The result `Future` contains [SonicResponse] which contains the response instance and meta data on the request.
+  /// Execute the request with the configured parameters.
+  /// Returns a [SonicResponse] with typed data and useful metadata in `extra`.
   Future<SonicResponse<T>> execute() async {
     SonicError? errorObject;
 

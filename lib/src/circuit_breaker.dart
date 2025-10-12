@@ -1,7 +1,9 @@
 import 'dart:async';
 
+/// States for a circuit breaker.
 enum CircuitState { closed, open, halfOpen }
 
+/// Configuration for a simple circuit breaker.
 class CircuitBreakerConfig {
   const CircuitBreakerConfig({
     this.failureThreshold = 5,
@@ -14,8 +16,10 @@ class CircuitBreakerConfig {
   final int halfOpenTrial;
 }
 
+/// Callback signature for circuit state changes.
 typedef CircuitEventHandler = void Function(String key, CircuitState state);
 
+/// A basic circuit breaker keyed by host or endpoint.
 class CircuitBreaker {
   CircuitBreaker(this.config, {this.onEvent});
 
@@ -27,8 +31,10 @@ class CircuitBreaker {
   final _openedAt = <String, DateTime>{};
   final _trials = <String, int>{};
 
+  /// Get the current state for a given key.
   CircuitState stateFor(String key) => _stateByKey[key] ?? CircuitState.closed;
 
+  /// Whether a request is allowed to proceed based on current state.
   bool allowRequest(String key) {
     final state = stateFor(key);
     if (state == CircuitState.closed) {
@@ -55,6 +61,7 @@ class CircuitBreaker {
     return false;
   }
 
+  /// Record a successful request for a key.
   void recordSuccess(String key) {
     final state = stateFor(key);
     if (state == CircuitState.halfOpen || state == CircuitState.open) {
@@ -65,6 +72,7 @@ class CircuitBreaker {
     }
   }
 
+  /// Record a failed request for a key.
   void recordFailure(String key) {
     final state = stateFor(key);
     final count = (_failures[key] ?? 0) + 1;

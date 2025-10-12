@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'enums.dart';
 
+/// Simple token-bucket rate limit configuration.
+/// [permitsPerSecond] controls refill rate; [burst] is the bucket capacity.
 class RateLimitConfig {
   const RateLimitConfig({required this.permitsPerSecond, this.burst = 1});
   final int permitsPerSecond;
   final int burst;
 }
 
+/// A minimal token-bucket limiter with priority-adjusted waits.
 class TokenBucketLimiter {
   TokenBucketLimiter(this.config)
       : _tokens = config.burst.toDouble(),
@@ -17,6 +20,8 @@ class TokenBucketLimiter {
   double _tokens;
   DateTime _last;
 
+  /// Acquire [cost] tokens, awaiting if necessary.
+  /// Returns the time spent waiting.
   Future<Duration> acquire(
       {int cost = 1, RequestPriority priority = RequestPriority.normal}) async {
     final start = DateTime.now();

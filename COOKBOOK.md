@@ -116,6 +116,8 @@ final sonic = Sonic.initialize(
 // After coolDown, one or more half-open trial requests are allowed; on success, circuit closes.
 ```
 
+See also: [Circuit Breaker wiki](wiki/Circuit-Breaker.md)
+
 ## Templates with dynamic token providers
 
 ```dart
@@ -166,3 +168,72 @@ Tips:
 - High networkMs → check server latency, reduce payload size, or enable gzip.
 - Frequent cacheRevalidateMs → consider longer TTL or altering Cache-Control.
 - High decodeMs → optimize decoders or reduce pluck/envelope work.
+
+## Retry policies and idempotency keys
+
+When calling non-idempotent endpoints (e.g., POST), keep retries disabled by default or use an idempotency key on the server and client:
+
+```dart
+final res = await sonic
+  .create<Map<String, dynamic>>(url: '/payments')
+  .post()
+  .withIdempotencyKey() // generate a unique key
+  .withRetryOptions(const RetryOptions(maxAttempts: 1)) // disable automatic retries
+  .execute();
+```
+
+If your backend supports idempotent POST with the key, you can opt-in to retries for POST:
+
+```dart
+final retryPost = const RetryOptions(
+  maxAttempts: 3,
+  retryMethods: {'GET','HEAD','PUT','DELETE','OPTIONS','POST'},
+);
+
+final res2 = await sonic
+  .create<Map<String, dynamic>>(url: '/payments')
+  .post()
+  .withIdempotencyKey('payment-123')
+  .withRetryOptions(retryPost)
+  .execute();
+```
+
+## Cache stores (File/Composite) and SWR tips
+
+```dart
+final store = CompositeCacheStore(
+  memory: InMemoryCacheStore(maxEntries: 512),
+  file: FileCacheStore(directoryPath: './.sonic-cache', maxEntries: 2048),
+);
+
+final sonic = Sonic.initialize(
+  baseConfiguration: BaseConfiguration(
+    baseUrl: 'https://api.example.com',
+    cacheStore: store,
+    cachePolicy: const CachePolicy(
+      enabled: true,
+      ttl: Duration(minutes: 5),
+      staleWhileRevalidate: Duration(minutes: 15),
+    ),
+  ),
+);
+
+// Enable cache per request (GET). SWR revalidates in background when stale.
+final res = await sonic
+  .create<List<dynamic>>(url: '/items')
+  .withDecoder((j) => j as List<dynamic>)
+  .cache()
+  .execute();
+
+// If you pluck a nested value for GET, cache is automatically disabled to avoid mixing shapes.
+final res2 = await sonic
+  .create<Map<String, dynamic>>(url: '/feed')
+  .pluck('data.items')
+  .withDecoder((j) => j as List<dynamic>)
+  .cache() // no-op when pluck is set for GET
+  .execute();
+```
+
+See also:
+- [Caching wiki](wiki/Caching.md)
+- [Rate Limiting wiki](wiki/Rate-Limiting.md)

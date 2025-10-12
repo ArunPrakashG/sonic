@@ -6,6 +6,7 @@
   <a href="https://pub.dev/packages/sonic"><img src="https://img.shields.io/pub/v/sonic?label=pub.dev&color=%23009dff" alt="pub version" /></a>
   <a href="https://pub.dev/packages/sonic/score"><img src="https://img.shields.io/pub/points/sonic?logo=dart&logoColor=white" alt="pub points" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="license MIT" /></a>
+  <a href="https://pub.dev/documentation/sonic/latest/"><img src="https://img.shields.io/badge/api-reference-pub.dev-blue" alt="API Reference" /></a>
 </p>
 <p align="center"><i>Blazingly simple, production-ready networking on top of Dio — with smart caching, retries, dedup, and observability.</i></p>
 
@@ -74,7 +75,10 @@ The main README is intentionally minimal. Full docs live in the GitHub Wiki:
 - ❓ [FAQ](https://github.com/ArunPrakashG/sonic/wiki/FAQ)
 - 📚 [Cookbook](https://github.com/ArunPrakashG/sonic/wiki/Cookbook)
   - Or see the local [COOKBOOK.md](COOKBOOK.md) for quick-start recipes.
-
+  - Circuit breaker probe/events: https://github.com/ArunPrakashG/sonic/wiki/Circuit-Breaker
+  - Rate limiter with priority: https://github.com/ArunPrakashG/sonic/wiki/Rate-Limiting
+  - Retry with idempotency keys: https://github.com/ArunPrakashG/sonic/wiki/Retries#idempotency-keys
+  - Cache stores & SWR: https://github.com/ArunPrakashG/sonic/wiki/Caching#stores-and-swr
 
 ### 📄 Pagination (Link headers)
 
@@ -151,7 +155,7 @@ final builder = sonic.template<User>('authJsonPost', url: '/users')
 - rateLimitWaitMs: time spent waiting on rate limiter
 - decodeMs: time to decode payload
 
-### �🚦 Rate limiting and priority
+### Rate limiting and priority
 
 Configure per-host rate limits via BaseConfiguration:
 
