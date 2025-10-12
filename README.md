@@ -54,6 +54,7 @@ final sonic = Sonic.initialize(
 // Typed GET with a decoder
 final res = await sonic
   .create<User>(url: '/users/1')
+  .withMethod(HttpMethod.get)
   .withDecoder((j) => User.fromJson(j as Map<String, dynamic>))
   .execute();
 
@@ -103,10 +104,11 @@ final sonic = Sonic.initialize(
 
 // This request goes to https://api.example.com/v2/users
 final res = await sonic
-    .create<User>(url: '/users')
-    .useApiVersion('v2')
-    .withDecoder((j) => User.fromJson(j as Map<String, dynamic>))
-    .execute();
+  .create<User>(url: '/users')
+  .withApiVersion('v2')
+  .withMethod(HttpMethod.get)
+  .withDecoder((j) => User.fromJson(j as Map<String, dynamic>))
+  .execute();
 ```
 
 When no version is selected (or the key is unknown), the default `baseUrl` is used.
@@ -122,7 +124,7 @@ See the Wiki: [API Versioning](https://github.com/ArunPrakashG/sonic/wiki/API-Ve
 
 ## 📝 Notes
 
-- You can bypass type parsing by using `asRawRequest()` and typing as `dynamic`.
+- You can bypass type parsing by using `withRawRequest()` and typing as `dynamic`.
 - Decoders are cached per type; after first registration, you typically don’t need to pass them again.
 - URLs can be relative (resolved against baseUrl) or absolute.
 - If `debugMode` is true, a `LogInterceptor` is added to the internal Dio client to log requests/responses.

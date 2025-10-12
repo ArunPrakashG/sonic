@@ -17,18 +17,18 @@ Future<void> main() async {
 
   final response = await sonic
       .create<TodoModel>(url: '/todos/1')
-      .get()
+      .withMethod(HttpMethod.get)
       .withDecoder(TodoModel.fromMap)
-      .onError((error) {
+      .withOnError((error) {
         print(error.message);
         print(error.stackTrace);
       })
-      .onSuccess(
+      .withOnSuccess(
         (data) {
           print(data.data?.title);
         },
       )
-      .onLoading(() => log('Loading'))
+      .withOnLoading(() => log('Loading'))
       .execute();
 
   // Simple upload with progress (example endpoint; replace with your API):
@@ -36,9 +36,9 @@ Future<void> main() async {
     final temp = await File('example.txt').writeAsString('hello');
     await sonic
         .create<void>(url: '/upload')
-        .upload()
-        .field('note', 'example')
-        .fileFromPath('file', temp.path, filename: 'example.txt')
+        .withUpload()
+        .withField('note', 'example')
+        .withFileFromPath('file', temp.path, filename: 'example.txt')
         .onUploadProgress((p) => log('upload ${p.current}/${p.total}'))
         .execute();
   } catch (_) {

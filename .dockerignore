@@ -1,0 +1,18 @@
+# Dart/Pub
+.dart_tool/
+.packages
+pubspec.lock
+
+# Git
+.git/
+.gitignore
+
+# VS Code
+.vscode/
+
+# Benchmark outputs
+benchmark/results*.json
+benchmark/results.md
+
+# Other
+build/

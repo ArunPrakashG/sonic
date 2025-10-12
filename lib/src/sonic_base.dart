@@ -327,6 +327,7 @@ class Sonic {
             ...?requestBuilder._headers,
             ..._conditionalHeaders,
           },
+          contentType: requestBuilder._contentType,
           responseType: requestBuilder._responseType,
           maxRedirects: requestBuilder._maxRedirects,
           followRedirects: requestBuilder._followRedirects,
@@ -975,6 +976,7 @@ class Sonic {
             ...?requestBuilder._extra,
             'dio': _client,
           },
+          contentType: requestBuilder._contentType,
           maxRedirects: requestBuilder._maxRedirects,
           followRedirects: requestBuilder._followRedirects,
           sendTimeout: requestBuilder._sentTimeout,
@@ -1239,6 +1241,7 @@ class SonicRequestBuilder<T> {
   Map<String, dynamic>? _headers;
   Map<String, dynamic>? _extra;
   dynamic _body;
+  String? _contentType;
   Map<String, dynamic>? _queryParameters;
   T Function(dynamic json)? _decoder;
   DecodeResult<T> Function(dynamic json)? _safeDecoder;
@@ -1287,6 +1290,30 @@ class SonicRequestBuilder<T> {
     _body = _formData;
   }
 
+  /// Set a specific Content-Type header for this request.
+  SonicRequestBuilder<T> withContentType(String contentType) {
+    _contentType = contentType;
+    return this;
+  }
+
+  /// Set a binary body and mark content-type as application/octet-stream.
+  SonicRequestBuilder<T> withBinaryBody(List<int> bytes,
+      {String contentType = 'application/octet-stream'}) {
+    _body = Stream<List<int>>.fromIterable(<List<int>>[bytes]);
+    _contentType = contentType;
+    return this;
+  }
+
+  /// Set a streaming body (e.g., for large uploads). Optionally set content-type.
+  SonicRequestBuilder<T> withBodyStream(Stream<List<int>> stream,
+      {String? contentType}) {
+    _body = stream;
+    if (contentType != null) {
+      _contentType = contentType;
+    }
+    return this;
+  }
+
   /// Apply a named template to this builder.
   SonicRequestBuilder<T> applyTemplate(String name) {
     final t = _sonic._templates[name];
@@ -1296,6 +1323,9 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [applyTemplate].
+  SonicRequestBuilder<T> withTemplate(String name) => applyTemplate(name);
+
   /// Apply a named template with argument to this builder.
   SonicRequestBuilder<T> applyTemplateWith<A>(String name, A args) {
     final t = _sonic._templates[name];
@@ -1304,6 +1334,10 @@ class SonicRequestBuilder<T> {
     }
     return this;
   }
+
+  /// Alias for [applyTemplateWith].
+  SonicRequestBuilder<T> withTemplateWith<A>(String name, A args) =>
+      applyTemplateWith<A>(name, args);
 
   /// Apply multiple templates in order.
   SonicRequestBuilder<T> applyTemplates(Iterable<String> names) {
@@ -1315,6 +1349,10 @@ class SonicRequestBuilder<T> {
     }
     return this;
   }
+
+  /// Alias for [applyTemplates].
+  SonicRequestBuilder<T> withTemplates(Iterable<String> names) =>
+      applyTemplates(names);
 
   /// Provide a typed decoder for responses of type [T].
   ///
@@ -1340,6 +1378,11 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [strict].
+  SonicRequestBuilder<T> withStrict(
+          {bool? enabled, List<String>? allowedTypes}) =>
+      strict(enabled: enabled, allowedTypes: allowedTypes);
+
   /// Provide a type guard to validate JSON before decoding.
   SonicRequestBuilder<T> withTypeGuard(
       DecodeResult<T> Function(dynamic json) guard) {
@@ -1360,6 +1403,9 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [asMultipart].
+  SonicRequestBuilder<T> withMultipart() => asMultipart();
+
   /// Convenience for uploads. Ensures multipart and defaults to POST if method was GET.
   SonicRequestBuilder<T> upload() {
     if (_method == HttpMethod.get) {
@@ -1368,12 +1414,19 @@ class SonicRequestBuilder<T> {
     return asMultipart();
   }
 
+  /// Alias for [upload].
+  SonicRequestBuilder<T> withUpload() => upload();
+
   /// Add a single text field to multipart body.
   SonicRequestBuilder<T> field(String key, Object? value) {
     _ensureFormData();
     _formData!.fields.add(MapEntry(key, value?.toString() ?? ''));
     return this;
   }
+
+  /// Alias for [field].
+  SonicRequestBuilder<T> withField(String key, Object? value) =>
+      field(key, value);
 
   /// Add multiple fields/files to multipart body.
   /// If any values are MultipartFile/List<MultipartFile>, they are preserved as files.
@@ -1385,6 +1438,9 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [fields].
+  SonicRequestBuilder<T> withFields(Map<String, dynamic> map) => fields(map);
+
   /// Add multiple files under the same field name.
   SonicRequestBuilder<T> files(String field, List<MultipartFile> files) {
     _ensureFormData();
@@ -1393,6 +1449,10 @@ class SonicRequestBuilder<T> {
     }
     return this;
   }
+
+  /// Alias for [files].
+  SonicRequestBuilder<T> withFiles(String field, List<MultipartFile> files) =>
+      this.files(field, files);
 
   /// Attach a file from disk to multipart body (synchronous variant).
   SonicRequestBuilder<T> fileFromPath(
@@ -1413,6 +1473,16 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [fileFromPath].
+  SonicRequestBuilder<T> withFileFromPath(
+    String field,
+    String filePath, {
+    String? filename,
+    MediaType? contentType,
+  }) =>
+      fileFromPath(field, filePath,
+          filename: filename, contentType: contentType);
+
   /// Attach a file from bytes to multipart body.
   SonicRequestBuilder<T> fileFromBytes(
     String field,
@@ -1430,6 +1500,15 @@ class SonicRequestBuilder<T> {
     _formData!.files.add(MapEntry(field, mf));
     return this;
   }
+
+  /// Alias for [fileFromBytes].
+  SonicRequestBuilder<T> withFileFromBytes(
+    String field,
+    List<int> bytes, {
+    String? filename,
+    MediaType? contentType,
+  }) =>
+      fileFromBytes(field, bytes, filename: filename, contentType: contentType);
 
   /// Attach a file from a byte stream to multipart body.
   SonicRequestBuilder<T> fileFromStream(
@@ -1450,6 +1529,17 @@ class SonicRequestBuilder<T> {
     _formData!.files.add(MapEntry(field, mf));
     return this;
   }
+
+  /// Alias for [fileFromStream].
+  SonicRequestBuilder<T> withFileFromStream(
+    String field,
+    Stream<List<int>> Function() stream,
+    int length, {
+    String? filename,
+    MediaType? contentType,
+  }) =>
+      fileFromStream(field, stream, length,
+          filename: filename, contentType: contentType);
 
   /// Alias for withSentProgress.
   SonicRequestBuilder<T> onUploadProgress(SonicProgressCallback cb) =>
@@ -1527,11 +1617,21 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [followRedirects]. If [enabled] is false, disables following redirects.
+  SonicRequestBuilder<T> withFollowRedirects([bool enabled = true]) {
+    _followRedirects = enabled;
+    return this;
+  }
+
   /// Specifies the maximum redirect count we should follow.
   SonicRequestBuilder<T> maxRedirects(int maxRedirects) {
     _maxRedirects = maxRedirects;
     return this;
   }
+
+  /// Alias for [maxRedirects].
+  SonicRequestBuilder<T> withMaxRedirects(int maxRedirects) =>
+      this.maxRedirects(maxRedirects);
 
   /// Specifies the request to be a `POST` Request.
   SonicRequestBuilder<T> post() {
@@ -1563,6 +1663,12 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Set the HTTP method explicitly.
+  SonicRequestBuilder<T> withMethod(HttpMethod method) {
+    _method = method;
+    return this;
+  }
+
   /// Adds body to the request.
   SonicRequestBuilder<T> withBody(dynamic body) {
     _body = body;
@@ -1581,6 +1687,9 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [asRawRequest].
+  SonicRequestBuilder<T> withRawRequest() => asRawRequest();
+
   /// Enable simple in-memory GET cache for this request.
   /// Note: if [pluck] is set for a GET, caching is disabled to avoid mixing shapes.
   SonicRequestBuilder<T> cache({CachePolicy? policy}) {
@@ -1594,11 +1703,19 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [cache].
+  SonicRequestBuilder<T> withCache({CachePolicy? policy}) =>
+      cache(policy: policy);
+
   /// Enable/disable request deduplication for this request.
   SonicRequestBuilder<T> deduplicate({bool enabled = true}) {
     _deduplicate = enabled;
     return this;
   }
+
+  /// Alias for [deduplicate].
+  SonicRequestBuilder<T> withDeduplication({bool enabled = true}) =>
+      deduplicate(enabled: enabled);
 
   /// Override retry options for this request.
   SonicRequestBuilder<T> withRetryOptions(RetryOptions options) {
@@ -1674,6 +1791,11 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [onSuccess].
+  SonicRequestBuilder<T> withOnSuccess(
+          void Function(SonicResponse<T> data) callback) =>
+      onSuccess(callback);
+
   /// Callback triggered when there is an error with the requesting process.
   /// Errors are reported as [SonicError] with message and stackTrace.
   SonicRequestBuilder<T> onError(void Function(SonicError error) callback) {
@@ -1681,11 +1803,20 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [onError].
+  SonicRequestBuilder<T> withOnError(
+          void Function(SonicError error) callback) =>
+      onError(callback);
+
   /// Callback triggered when the request is in progress.
   SonicRequestBuilder<T> onLoading(void Function() callback) {
     _onRunning = callback;
     return this;
   }
+
+  /// Alias for [onLoading].
+  SonicRequestBuilder<T> withOnLoading(void Function() callback) =>
+      onLoading(callback);
 
   /// Pluck a nested value from the JSON payload before decoding.
   /// Example: 'data.items[0].user'. Disables GET cache for this request to avoid mixing cached shapes.
@@ -1697,8 +1828,14 @@ class SonicRequestBuilder<T> {
     return this;
   }
 
+  /// Alias for [pluck].
+  SonicRequestBuilder<T> withPluck(String path) => pluck(path);
+
   /// Alias for pluck when unwrapping common envelopes like 'data'.
   SonicRequestBuilder<T> envelope(String key) => pluck(key);
+
+  /// Alias for [envelope].
+  SonicRequestBuilder<T> withEnvelope(String key) => envelope(key);
 
   /// Provide a correlation/request ID header. If omitted, generates one.
   SonicRequestBuilder<T> withCorrelationId([String? id]) {
@@ -1797,6 +1934,10 @@ class SonicRequestBuilder<T> {
     _apiVersion = versionKey;
     return this;
   }
+
+  /// Alias for [useApiVersion].
+  SonicRequestBuilder<T> withApiVersion(String versionKey) =>
+      useApiVersion(versionKey);
 
   @override
   bool operator ==(covariant SonicRequestBuilder<T> other) {

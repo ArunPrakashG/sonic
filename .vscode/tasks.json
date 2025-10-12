@@ -30,6 +30,22 @@
 				"$dart-test"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Dart: Analyze and Test",
+			"type": "shell",
+			"command": "dart",
+			"args": [
+				"--version",
+				"&&",
+				"dart",
+				"analyze",
+				"&&",
+				"dart",
+				"test"
+			],
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }

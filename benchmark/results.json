@@ -1,0 +1,84 @@
+{
+  "GET json (1KB)": {
+    "http": {
+      "avgMs": 1.88,
+      "p90Ms": 6,
+      "p99Ms": 7
+    },
+    "dio": {
+      "avgMs": 1.0,
+      "p90Ms": 3,
+      "p99Ms": 7
+    },
+    "sonic": {
+      "avgMs": 0.88,
+      "p90Ms": 2,
+      "p99Ms": 7
+    }
+  },
+  "GET json (50KB)": {
+    "http": {
+      "avgMs": 4.52,
+      "p90Ms": 9,
+      "p99Ms": 14
+    },
+    "dio": {
+      "avgMs": 2.56,
+      "p90Ms": 7,
+      "p99Ms": 9
+    },
+    "sonic": {
+      "avgMs": 2.52,
+      "p90Ms": 7,
+      "p99Ms": 9
+    }
+  },
+  "GET bytes (100KB)": {
+    "http": {
+      "avgMs": 2.72,
+      "p90Ms": 6,
+      "p99Ms": 8
+    },
+    "dio": {
+      "avgMs": 2.24,
+      "p90Ms": 7,
+      "p99Ms": 7
+    },
+    "sonic": {
+      "avgMs": 2.72,
+      "p90Ms": 7,
+      "p99Ms": 11
+    }
+  },
+  "parallel x20 (no dedup)": {
+    "dio": {
+      "avgMs": 10.52,
+      "p90Ms": 14,
+      "p99Ms": 20
+    },
+    "sonic": {
+      "avgMs": 8.2,
+      "p90Ms": 14,
+      "p99Ms": 16
+    }
+  },
+  "parallel x20 (dedup on)": {
+    "sonic": {
+      "avgMs": 0.4,
+      "p90Ms": 1,
+      "p99Ms": 2
+    }
+  },
+  "retry (3 attempts)": {
+    "dio": {
+      "avgMs": 0.48,
+      "p90Ms": 0,
+      "p99Ms": 7
+    },
+    "sonic": {
+      "avgMs": 0.64,
+      "p90Ms": 1,
+      "p99Ms": 8
+    }
+  }
+}
